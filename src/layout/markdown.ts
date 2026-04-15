@@ -1,44 +1,62 @@
-import type { AnyExtension, JSONContent } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
-import { MarkdownManager } from '@tiptap/markdown'
-import { getLayoutExtensions } from './extensions'
+import remarkDirective from 'remark-directive'
+import remarkParse from 'remark-parse'
+import remarkStringify from 'remark-stringify'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+import type { MarkdownRoot } from './nodes'
+import { remarkLayoutDirectives } from './remark'
 
-export type LayoutMarkdownManagerOptions = Omit<
-  NonNullable<ConstructorParameters<typeof MarkdownManager>[0]>,
-  'extensions'
-> & {
-  extensions?: AnyExtension[]
+export interface LayoutMarkdownProcessorOptions {
+  bullet?: '-' | '*' | '+'
 }
 
-let layoutMarkdownManager: MarkdownManager | null = null
+let layoutMarkdownProcessor:
+  | ReturnType<typeof createLayoutMarkdownProcessor>
+  | null = null
 
-export function getLayoutMarkdownBaseExtensions(): AnyExtension[] {
-  return [StarterKit, ...getLayoutExtensions()]
+export function createLayoutMarkdownProcessor(
+  options: LayoutMarkdownProcessorOptions = {},
+) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkDirective)
+    .use(remarkLayoutDirectives)
+    .use(remarkStringify, {
+      bullet: options.bullet ?? '-',
+      fences: true,
+      listItemIndent: 'one',
+    })
 }
 
-export function createLayoutMarkdownManager(
-  options: LayoutMarkdownManagerOptions = {},
-): MarkdownManager {
-  return new MarkdownManager({
-    ...options,
-    extensions: options.extensions ?? getLayoutMarkdownBaseExtensions(),
-  })
-}
-
-export function getLayoutMarkdownManager(): MarkdownManager {
-  if (layoutMarkdownManager) {
-    return layoutMarkdownManager
+export function getLayoutMarkdownProcessor() {
+  if (!layoutMarkdownProcessor) {
+    layoutMarkdownProcessor = createLayoutMarkdownProcessor()
   }
 
-  layoutMarkdownManager = createLayoutMarkdownManager()
-
-  return layoutMarkdownManager
+  return layoutMarkdownProcessor
 }
 
-export function parseLayoutDocument(markdown: string): JSONContent {
-  return getLayoutMarkdownManager().parse(markdown)
+function stripPositions(root: MarkdownRoot): MarkdownRoot {
+  visit(root, node => {
+    delete (node as { position?: unknown }).position
+  })
+
+  return root
 }
 
-export function serializeLayoutDocument(content: JSONContent): string {
-  return getLayoutMarkdownManager().serialize(content).trimEnd()
+export function parseLayoutMarkdown(markdown: string): MarkdownRoot {
+  const processor = getLayoutMarkdownProcessor()
+  return stripPositions(
+    processor.runSync(processor.parse(markdown)) as MarkdownRoot,
+  )
+}
+
+export function stringifyLayoutMarkdown(root: MarkdownRoot): string {
+  const processor = getLayoutMarkdownProcessor()
+  const normalized = processor.runSync(root) as MarkdownRoot
+  return processor.stringify(normalized as never).trimEnd()
+}
+
+export function normalizeLayoutMarkdown(markdown: string): string {
+  return stringifyLayoutMarkdown(parseLayoutMarkdown(markdown))
 }

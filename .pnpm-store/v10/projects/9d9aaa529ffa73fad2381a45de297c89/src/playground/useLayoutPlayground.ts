@@ -1,9 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import type { JSONContent } from '@tiptap/core'
-import Highlight from '@tiptap/extension-highlight'
-import StarterKit from '@tiptap/starter-kit'
-import { useEditor } from '@tiptap/react'
-import { LayoutKit } from '../../../src'
+import { useState } from 'react'
 import { exampleMarkdown } from '../demo'
 import {
   canonicalizeSourceMarkdown,
@@ -13,22 +8,23 @@ import {
 } from './source-sync'
 
 export function useLayoutPlayground() {
+  const initialMarkdown = canonicalizeSourceMarkdown(exampleMarkdown)
+  const initialParsed = parseSourceMarkdown(initialMarkdown)
   const [editorMode, setEditorMode] = useState<PlaygroundEditorMode>('visual')
-  const [documentJson, setDocumentJson] = useState<JSONContent>(
-    parseSourceMarkdown(exampleMarkdown).documentJson!,
-  )
-  const [sourceMarkdown, setSourceMarkdown] = useState(exampleMarkdown)
+  const [documentAst, setDocumentAst] = useState(initialParsed.documentAst)
+  const [committedMarkdown, setCommittedMarkdown] = useState(initialMarkdown)
+  const [sourceMarkdown, setSourceMarkdown] = useState(initialMarkdown)
   const [parseError, setParseError] = useState('')
-  const previousEditorModeRef = useRef<PlaygroundEditorMode>('visual')
 
   function updateSourceMarkdown(nextMarkdown: string) {
     setSourceMarkdown(nextMarkdown)
 
-    const { documentJson: nextDocument, parseError: nextParseError } =
+    const { documentAst: nextDocumentAst, parseError: nextParseError } =
       parseSourceMarkdown(nextMarkdown)
 
-    if (nextDocument) {
-      setDocumentJson(nextDocument)
+    if (nextDocumentAst) {
+      setCommittedMarkdown(nextMarkdown)
+      setDocumentAst(nextDocumentAst)
     }
 
     setParseError(nextParseError)
@@ -39,14 +35,17 @@ export function useLayoutPlayground() {
       return
     }
 
-    setSourceMarkdown(canonicalizeSourceMarkdown(documentJson))
+    const nextMarkdown = canonicalizeSourceMarkdown(sourceMarkdown)
+    setCommittedMarkdown(nextMarkdown)
+    setSourceMarkdown(nextMarkdown)
+    setDocumentAst(parseSourceMarkdown(nextMarkdown).documentAst)
   }
 
   function updateEditorMode(nextMode: PlaygroundEditorMode) {
     const resolved = resolveModeSwitch({
       currentMode: editorMode,
       nextMode,
-      documentJson,
+      committedMarkdown,
       sourceMarkdown,
       parseError,
     })
@@ -55,52 +54,26 @@ export function useLayoutPlayground() {
     setSourceMarkdown(resolved.sourceMarkdown)
   }
 
-  const editor = useEditor({
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: 'layout-surface',
-      },
-    },
-    extensions: [StarterKit, Highlight, LayoutKit],
-    content: documentJson,
-    onCreate: ({ editor: currentEditor }) => {
-      setDocumentJson(currentEditor.getJSON())
-      setSourceMarkdown(canonicalizeSourceMarkdown(currentEditor.getJSON()))
-      setParseError('')
-    },
-    onUpdate: ({ editor: currentEditor }) => {
-      const nextDocument = currentEditor.getJSON()
-      setDocumentJson(nextDocument)
-      setSourceMarkdown(canonicalizeSourceMarkdown(nextDocument))
-      setParseError('')
-    },
-  })
+  function updateVisualMarkdown(nextMarkdown: string) {
+    setCommittedMarkdown(nextMarkdown)
+    setSourceMarkdown(nextMarkdown)
 
-  useEffect(() => {
-    const previousEditorMode = previousEditorModeRef.current
-    previousEditorModeRef.current = editorMode
+    const { documentAst: nextDocumentAst, parseError: nextParseError } =
+      parseSourceMarkdown(nextMarkdown)
 
-    if (
-      !editor
-      || editorMode !== 'visual'
-      || previousEditorMode === 'visual'
-      || parseError
-    ) {
-      return
-    }
-
-    editor.commands.setContent(documentJson, { emitUpdate: false })
-  }, [documentJson, editor, editorMode, parseError])
+    setDocumentAst(nextDocumentAst)
+    setParseError(nextParseError)
+  }
 
   return {
-    documentJson,
-    editor,
+    committedMarkdown,
+    documentAst,
     editorMode,
     formatSourceMarkdown,
     parseError,
     setEditorMode: updateEditorMode,
     setSourceMarkdown: updateSourceMarkdown,
+    setVisualMarkdown: updateVisualMarkdown,
     sourceMarkdown,
   }
 }

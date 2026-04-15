@@ -1,84 +1,70 @@
 import { describe, expect, test } from 'vitest'
 import {
-  createLayoutMarkdownManager,
   createLayoutDirectiveNode,
-  getLayoutMarkdownBaseExtensions,
-  parseLayoutDocument,
-  serializeLayoutDocument,
+  getLayoutDirectiveData,
+  normalizeLayoutMarkdown,
+  parseLayoutMarkdown,
+  remarkLayoutDirectiveEmptyLines,
+  stringifyLayoutMarkdown,
 } from '../src'
 
 describe('layout markdown', () => {
-  test('parses remark-directive container syntax into tiptap json', () => {
+  test('parses layout directives into mdast with normalized metadata', () => {
     const markdown = [
       '::::stack{gap=3}',
-      '',
       ':::box{padding=2 bg="muted"}',
-      '',
       '# 张三',
-      '',
       ':::',
-      '',
       '::break',
-      '',
       '::::',
     ].join('\n')
 
-    expect(parseLayoutDocument(markdown)).toMatchObject({
-      type: 'doc',
-      content: [
-        {
-          type: 'layoutStack',
-          attrs: {
-            gap: 3,
-          },
-          content: [
-            {
-              type: 'layoutBox',
-              attrs: {
-                padding: 2,
-                margin: 0,
-                border: 'none',
-                radius: 0,
-                bg: 'muted',
-                shadow: 'none',
-                overflow: 'clip',
-              },
-              content: [
-                {
-                  type: 'heading',
-                  attrs: {
-                    level: 1,
-                  },
-                  content: [{ type: 'text', text: '张三' }],
-                },
-              ],
-            },
-            {
-              type: 'layoutBreak',
-              attrs: {},
-            },
-          ],
-        },
-      ],
+    const root = parseLayoutMarkdown(markdown)
+    const stack = root.children[0]
+    const box = stack?.children?.[0]
+    const pageBreak = stack?.children?.[1]
+
+    expect(getLayoutDirectiveData(stack)).toEqual({
+      attributes: { gap: 3 },
+      kind: 'container',
+      name: 'stack',
+    })
+    expect(getLayoutDirectiveData(box)).toEqual({
+      attributes: {
+        bg: 'muted',
+        border: 'none',
+        margin: 0,
+        overflow: 'clip',
+        padding: 2,
+        radius: 0,
+        shadow: 'none',
+      },
+      kind: 'container',
+      name: 'box',
+    })
+    expect(getLayoutDirectiveData(pageBreak)).toEqual({
+      attributes: {},
+      kind: 'leaf',
+      name: 'break',
     })
   })
 
-  test('round-trips tiptap json through remark-directive markdown', () => {
-    const document = {
-      type: 'doc',
-      content: [
+  test('round-trips programmatic mdast through canonical markdown', () => {
+    const root = {
+      type: 'root' as const,
+      children: [
         createLayoutDirectiveNode('grid', { cols: 6, gap: 2 }, [
           createLayoutDirectiveNode('cell', { span: 3 }, [
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: 'left' }],
+              children: [{ type: 'text', value: 'left' }],
             },
           ]),
           createLayoutDirectiveNode('cell', { span: 3 }, [
             createLayoutDirectiveNode('box', { padding: 2, border: 'subtle' }, [
               {
                 type: 'paragraph',
-                content: [{ type: 'text', text: 'right' }],
+                children: [{ type: 'text', value: 'right' }],
               },
             ]),
           ]),
@@ -86,38 +72,22 @@ describe('layout markdown', () => {
       ],
     }
 
-    const markdown = serializeLayoutDocument(document)
+    const markdown = stringifyLayoutMarkdown(root)
 
     expect(markdown).toContain('grid{cols="6" gap="2"}')
     expect(markdown).toContain('cell{span="3"}')
     expect(markdown).toContain('box{padding="2" border="subtle"}')
-    expect(parseLayoutDocument(markdown)).toEqual(document)
-  })
-
-  test('exposes a preconfigured markdown manager based on official markdown support', () => {
-    const manager = createLayoutMarkdownManager()
-    const markdown = ':::box\n\nhello\n\n:::'
-
-    expect(manager.parse(markdown)).toEqual(parseLayoutDocument(markdown))
-    expect(manager.serialize(parseLayoutDocument(markdown))).toBe(
-      serializeLayoutDocument(parseLayoutDocument(markdown)),
-    )
+    expect(parseLayoutMarkdown(markdown)).toEqual(root)
   })
 
   test('omits default attributes from canonical markdown output', () => {
-    const markdown = serializeLayoutDocument({
-      type: 'doc',
-      content: [
-        createLayoutDirectiveNode('grid', { cols: 12, gap: 0 }, [
-          createLayoutDirectiveNode('cell', { span: 1 }, [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: 'defaulted' }],
-            },
-          ]),
-        ]),
-      ],
-    })
+    const markdown = normalizeLayoutMarkdown([
+      '::::grid{cols=12 gap=0}',
+      ':::cell{span=1}',
+      'defaulted',
+      ':::',
+      '::::',
+    ].join('\n'))
 
     expect(markdown).toContain(':::grid')
     expect(markdown).not.toContain('cols=')
@@ -125,18 +95,46 @@ describe('layout markdown', () => {
     expect(markdown).not.toContain('span=')
   })
 
-  test('exposes the default extension bundle used by the markdown manager', () => {
-    const extensions = getLayoutMarkdownBaseExtensions()
+  test('rejects layout directives used with the wrong syntax', () => {
+    expect(() => parseLayoutMarkdown('::box')).toThrow(/must use container syntax/)
+    expect(() => parseLayoutMarkdown(':::break\n:::')).toThrow(/must use leaf syntax/)
+  })
 
-    expect(extensions.length).toBeGreaterThan(1)
-    expect(
-      extensions.some(extension => 'name' in extension && extension.name === 'layoutKit'),
-    ).toBe(false)
-    expect(
-      extensions.some(extension => 'name' in extension && extension.name === 'layout'),
-    ).toBe(true)
-    expect(
-      extensions.some(extension => 'name' in extension && extension.name === 'layoutBox'),
-    ).toBe(true)
+  test('converts layout container <br /> markers into empty paragraphs for editor parsers', () => {
+    const root = {
+      type: 'root' as const,
+      children: [
+        createLayoutDirectiveNode('box', {}, [
+          {
+            type: 'heading',
+            depth: 2,
+            children: [{ type: 'text', value: 'Title' }],
+          },
+          { type: 'html', value: '<br />' },
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', value: 'Body' }],
+          },
+        ]),
+      ],
+    }
+
+    remarkLayoutDirectiveEmptyLines()(root)
+
+    expect(root.children[0]?.children).toEqual([
+      {
+        type: 'heading',
+        depth: 2,
+        children: [{ type: 'text', value: 'Title' }],
+      },
+      {
+        type: 'paragraph',
+        children: [],
+      },
+      {
+        type: 'paragraph',
+        children: [{ type: 'text', value: 'Body' }],
+      },
+    ])
   })
 })

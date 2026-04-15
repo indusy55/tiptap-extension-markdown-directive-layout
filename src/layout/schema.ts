@@ -1,5 +1,3 @@
-import type { JSONContent } from '@tiptap/core'
-
 export const LAYOUT_DIRECTIVE_NAMES = [
   'stack',
   'grid',
@@ -76,7 +74,6 @@ export type LayoutNodeName =
   (typeof LAYOUT_NODE_NAMES)[LayoutDirectiveName]
 
 export type RawAttributes = Record<string, unknown> | null | undefined
-export type LayoutDirectiveContent = JSONContent[]
 
 const layoutDirectiveNameSet = new Set<LayoutDirectiveName>(
   LAYOUT_DIRECTIVE_NAMES,

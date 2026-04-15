@@ -1,24 +1,27 @@
-import type { JSONContent } from '@tiptap/core'
-import { parseLayoutDocument, serializeLayoutDocument } from '../../../src'
+import {
+  normalizeLayoutMarkdown,
+  parseLayoutMarkdown,
+  type MarkdownRoot,
+} from '../../../src'
 
 export type PlaygroundEditorMode = 'visual' | 'source'
 
-export function canonicalizeSourceMarkdown(documentJson: JSONContent): string {
-  return serializeLayoutDocument(documentJson)
+export function canonicalizeSourceMarkdown(markdown: string): string {
+  return normalizeLayoutMarkdown(markdown)
 }
 
 export function parseSourceMarkdown(nextMarkdown: string): {
-  documentJson: JSONContent | null
+  documentAst: MarkdownRoot | null
   parseError: string
 } {
   try {
     return {
-      documentJson: parseLayoutDocument(nextMarkdown),
+      documentAst: parseLayoutMarkdown(nextMarkdown),
       parseError: '',
     }
   } catch (error) {
     return {
-      documentJson: null,
+      documentAst: null,
       parseError: error instanceof Error ? error.message : 'Unknown parse error',
     }
   }
@@ -27,7 +30,7 @@ export function parseSourceMarkdown(nextMarkdown: string): {
 export function resolveModeSwitch(options: {
   currentMode: PlaygroundEditorMode
   nextMode: PlaygroundEditorMode
-  documentJson: JSONContent
+  committedMarkdown: string
   sourceMarkdown: string
   parseError: string
 }): {
@@ -37,7 +40,7 @@ export function resolveModeSwitch(options: {
   const {
     currentMode,
     nextMode,
-    documentJson,
+    committedMarkdown,
     sourceMarkdown,
     parseError,
   } = options
@@ -52,7 +55,7 @@ export function resolveModeSwitch(options: {
   if (nextMode === 'source') {
     return {
       nextMode,
-      sourceMarkdown: canonicalizeSourceMarkdown(documentJson),
+      sourceMarkdown: committedMarkdown,
     }
   }
 
@@ -65,6 +68,6 @@ export function resolveModeSwitch(options: {
 
   return {
     nextMode,
-    sourceMarkdown: canonicalizeSourceMarkdown(documentJson),
+    sourceMarkdown,
   }
 }

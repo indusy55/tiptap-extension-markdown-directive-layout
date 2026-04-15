@@ -10,9 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tiptap/extension-highlight": "^3.22.3",
-    "@tiptap/react": "^3.22.3",
-    "@tiptap/starter-kit": "^3.22.3",
+    "@milkdown/kit": "^7.20.0",
+    "@milkdown/react": "^7.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

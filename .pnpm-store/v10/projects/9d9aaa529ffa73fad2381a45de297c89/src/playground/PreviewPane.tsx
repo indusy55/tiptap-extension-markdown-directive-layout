@@ -1,15 +1,74 @@
-import type { JSONContent } from '@tiptap/core'
-import { paginateDocument } from './paginate'
-import { renderPreviewPageHtml } from './preview-markdown'
+import { useEffect } from 'react'
+import {
+  defaultValueCtx,
+  Editor,
+  editorViewOptionsCtx,
+  remarkPluginsCtx,
+  rootCtx,
+} from '@milkdown/kit/core'
+import { commonmark } from '@milkdown/kit/preset/commonmark'
+import { replaceAll } from '@milkdown/kit/utils'
+import {
+  Milkdown,
+  MilkdownProvider,
+  useEditor,
+  useInstance,
+} from '@milkdown/react'
+import remarkDirective from 'remark-directive'
+import {
+  remarkLayoutDirectiveEmptyLines,
+  remarkLayoutDirectives,
+} from '../../../src'
+import { milkdownLayoutPlugins } from './milkdown-layout'
 
 type PreviewPaneProps = {
-  documentJson: JSONContent
+  markdown: string
   parseError: string
 }
 
-export function PreviewPane({ documentJson, parseError }: PreviewPaneProps) {
-  const { pages, rootGap, usesRootStack } = paginateDocument(documentJson)
+function PreviewSurface({ markdown }: { markdown: string }) {
+  const { loading } = useEditor((root) => {
+    return Editor.make()
+      .config((ctx) => {
+        ctx.set(rootCtx, root)
+        ctx.set(defaultValueCtx, markdown)
+        ctx.update(remarkPluginsCtx, plugins => [
+          ...plugins,
+          { plugin: remarkDirective, options: {} },
+          { plugin: remarkLayoutDirectives, options: {} },
+          { plugin: remarkLayoutDirectiveEmptyLines, options: {} },
+        ])
+        ctx.update(editorViewOptionsCtx, options => ({
+          ...options,
+          editable: () => false,
+        }))
+      })
+      .use(commonmark)
+      .use(milkdownLayoutPlugins)
+  }, [])
 
+  const [instanceLoading, getEditor] = useInstance()
+
+  useEffect(() => {
+    if (instanceLoading) {
+      return
+    }
+
+    const editor = getEditor()
+    editor?.action(replaceAll(markdown, true))
+  }, [getEditor, instanceLoading, markdown])
+
+  return (
+    <div className="preview-document">
+      <div className="layout-surface preview-surface">
+        {loading ? <div className="editor-loading">Loading preview...</div> : null}
+        <Milkdown />
+      </div>
+    </div>
+  )
+}
+
+export function PreviewPane({ markdown, parseError }: PreviewPaneProps) {
   return (
     <section className="pane preview-pane">
       {parseError ? (
@@ -17,17 +76,9 @@ export function PreviewPane({ documentJson, parseError }: PreviewPaneProps) {
       ) : (
         <div className="pane-scroll">
           <div className="preview-stage">
-            {pages.map(page => (
-              <article key={page.index} className="page">
-                <div
-                  className="page-body layout-surface"
-                  dangerouslySetInnerHTML={{
-                    __html: renderPreviewPageHtml(page, rootGap, usesRootStack),
-                  }}
-                />
-                <footer className="page-footer">{page.index}</footer>
-              </article>
-            ))}
+            <MilkdownProvider>
+              <PreviewSurface markdown={markdown} />
+            </MilkdownProvider>
           </div>
         </div>
       )}

@@ -1,16 +1,16 @@
-import type { JSONContent } from '@tiptap/core'
+import type { MarkdownRoot } from '../../../src'
 
 type AstDrawerProps = {
   astOpen: boolean
+  documentAst: MarkdownRoot | null
   parseError: string
-  documentJson: JSONContent
   onToggle: () => void
 }
 
 export function AstDrawer({
   astOpen,
+  documentAst,
   parseError,
-  documentJson,
   onToggle,
 }: AstDrawerProps) {
   return (
@@ -19,7 +19,7 @@ export function AstDrawer({
         AST
       </button>
       <div className="ast-panel">
-        <pre>{parseError || JSON.stringify(documentJson, null, 2)}</pre>
+        <pre>{parseError || JSON.stringify(documentAst, null, 2)}</pre>
       </div>
     </aside>
   )

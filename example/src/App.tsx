@@ -8,35 +8,37 @@ import { useLayoutPlayground } from './playground/useLayoutPlayground'
 function App() {
   const [astOpen, setAstOpen] = useState(false)
   const {
-    documentJson,
-    editor,
+    committedMarkdown,
+    documentAst,
     editorMode,
     formatSourceMarkdown,
     parseError,
     setEditorMode,
     setSourceMarkdown,
+    setVisualMarkdown,
     sourceMarkdown,
   } = useLayoutPlayground()
 
   return (
     <div className="app-shell">
-      <div className="playground-title">Tiptap Layout Playground</div>
+      <div className="playground-title">Layout Markdown Playground</div>
       <main className="playground">
         <EditorPane
-          editor={editor}
+          committedMarkdown={committedMarkdown}
           editorMode={editorMode}
           parseError={parseError}
           sourceMarkdown={sourceMarkdown}
           onEditorModeChange={setEditorMode}
           onFormatSource={formatSourceMarkdown}
           onSourceMarkdownChange={setSourceMarkdown}
+          onVisualMarkdownChange={setVisualMarkdown}
         />
-        <PreviewPane documentJson={documentJson} parseError={parseError} />
+        <PreviewPane markdown={committedMarkdown} parseError={parseError} />
       </main>
       <AstDrawer
         astOpen={astOpen}
+        documentAst={documentAst}
         parseError={parseError}
-        documentJson={documentJson}
         onToggle={() => setAstOpen(open => !open)}
       />
     </div>

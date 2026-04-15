@@ -90,6 +90,27 @@
   min-height: 100%;
 }
 
+.editor-pane .page {
+  width: min(100%, 720px);
+  min-height: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+}
+
+.editor-pane .page-body {
+  min-height: 100%;
+  padding: 20px;
+}
+
+.source-page {
+  height: 100%;
+}
+
+.source-page .page-body {
+  height: 100%;
+  min-height: 0;
+}
+
 .layout-surface {
   outline: none;
   font: 14px/1.7 var(--body);
@@ -112,11 +133,20 @@
   padding-left: 20px;
 }
 
-.layout-surface .ProseMirror {
+.layout-surface .milkdown {
+  min-height: 100%;
+}
+
+.layout-surface .editor {
   min-height: 100%;
   outline: none;
   font: inherit;
   color: inherit;
+  background: transparent;
+}
+
+.layout-surface .editor > * + * {
+  margin-top: 12px;
 }
 
 .layout-surface .layout-box > * + *,
@@ -263,6 +293,17 @@
   overflow: auto;
 }
 
+.source-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font: 12px/1.55 var(--body);
+}
+
+.source-note code {
+  font: inherit;
+  font-family: var(--mono);
+}
+
 .preview-pane .layout-surface li > p {
   display: inline;
 }
@@ -298,42 +339,20 @@
 }
 
 .preview-stage {
-  display: grid;
-  gap: 18px;
-  align-content: start;
-}
-
-.page {
-  width: min(100%, 720px);
-  margin: 0 auto;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  border: 0;
-  border-radius: 0;
-  background: #ffffff;
-}
-
-.page-body {
-  min-height: 720px;
-  padding: 20px;
+  min-height: 0;
   display: block;
 }
 
-.source-page {
-  height: 100%;
-  grid-template-rows: 1fr;
+.preview-document {
+  width: min(100%, 720px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 20px;
+  background: #ffffff;
 }
 
-.source-page .page-body {
-  height: 100%;
-  min-height: 0;
-}
-
-.page-footer {
-  padding: 8px 20px 14px;
-  text-align: right;
-  color: var(--muted);
-  font-size: 12px;
+.preview-pane .preview-surface {
+  min-height: 100%;
 }
 
 .preview-error {
@@ -421,12 +440,11 @@
     min-height: 48vh;
   }
 
-  .page {
-    width: 100%;
+  .preview-document {
+    padding: 18px;
   }
 
-  .page-body {
-    min-height: 560px;
+  .editor-pane .page-body {
     padding: 18px;
   }
 }

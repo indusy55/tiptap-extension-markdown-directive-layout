@@ -8,45 +8,34 @@ import {
 
 describe('playground mode sync', () => {
   test('canonicalizes markdown when switching from visual to source', () => {
-    const documentJson = {
-      type: 'doc',
-      content: [
-        createLayoutDirectiveNode('box', {}, [
-          {
-            type: 'paragraph',
-            content: [{ type: 'text', text: 'Hello' }],
-          },
-        ]),
-      ],
-    }
+    const committedMarkdown = canonicalizeSourceMarkdown(
+      [
+        ':::box',
+        'Hello',
+        ':::',
+      ].join('\n'),
+    )
 
     expect(
       resolveModeSwitch({
         currentMode: 'visual',
         nextMode: 'source',
-        documentJson,
+        committedMarkdown,
         sourceMarkdown: 'stale',
         parseError: '',
       }),
     ).toEqual({
       nextMode: 'source',
-      sourceMarkdown: canonicalizeSourceMarkdown(documentJson),
+      sourceMarkdown: committedMarkdown,
     })
   })
 
   test('keeps source mode active when markdown is invalid', () => {
-    const documentJson = {
-      type: 'doc',
-      content: [
-        createLayoutDirectiveNode('box', {}, []),
-      ],
-    }
-
     expect(
       resolveModeSwitch({
         currentMode: 'source',
         nextMode: 'visual',
-        documentJson,
+        committedMarkdown: ':::box\nHello\n:::',
         sourceMarkdown: ':::box',
         parseError: 'Unclosed directive',
       }),
@@ -60,19 +49,60 @@ describe('playground mode sync', () => {
     const parsed = parseSourceMarkdown(':::box\n\nHello\n\n:::')
 
     expect(parsed.parseError).toBe('')
-    expect(parsed.documentJson).not.toBeNull()
+    expect(parsed.documentAst).not.toBeNull()
 
     expect(
       resolveModeSwitch({
         currentMode: 'source',
         nextMode: 'visual',
-        documentJson: parsed.documentJson!,
+        committedMarkdown: ':::box\n\nHello\n\n:::',
         sourceMarkdown: ':::box\n\nHello\n\n:::',
         parseError: '',
       }),
     ).toEqual({
       nextMode: 'visual',
-      sourceMarkdown: canonicalizeSourceMarkdown(parsed.documentJson!),
+      sourceMarkdown: ':::box\n\nHello\n\n:::',
     })
+  })
+
+  test('programmatic directives canonicalize through markdown', () => {
+    const markdown = canonicalizeSourceMarkdown(
+      [
+        '::::grid{cols=12 gap=0}',
+        ':::cell{span=1}',
+        'Left',
+        ':::',
+        '::::',
+      ].join('\n'),
+    )
+
+    expect(markdown).toContain(':::grid')
+    expect(markdown).not.toContain('cols=')
+    expect(markdown).not.toContain('gap=')
+    expect(markdown).not.toContain('span=')
+  })
+
+  test('parseSourceMarkdown returns ast for programmatic directives', () => {
+    const markdown = [
+      '::::stack{gap="2"}',
+      ':::box{padding="2"}',
+      'Hello',
+      ':::',
+      '::::',
+    ].join('\n')
+
+    const parsed = parseSourceMarkdown(markdown)
+
+    expect(parsed.parseError).toBe('')
+    expect(parsed.documentAst?.children).toEqual([
+      createLayoutDirectiveNode('stack', { gap: 2 }, [
+        createLayoutDirectiveNode('box', { padding: 2 }, [
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', value: 'Hello' }],
+          },
+        ]),
+      ]),
+    ])
   })
 })

@@ -1,5 +1,5 @@
 export * from './attributes'
-export * from './extensions'
 export * from './markdown'
 export * from './nodes'
+export * from './remark'
 export * from './schema'

@@ -1,132 +1,243 @@
-import type { Editor, JSONContent } from '@tiptap/core'
-import { EditorContent } from '@tiptap/react'
-import { createLayoutDirectiveNode } from '../../../src'
+import {
+  defaultValueCtx,
+  Editor,
+  remarkPluginsCtx,
+  rootCtx,
+} from '@milkdown/kit/core'
+import { commonmark } from '@milkdown/kit/preset/commonmark'
+import { history } from '@milkdown/kit/plugin/history'
+import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
+import { insert } from '@milkdown/kit/utils'
+import {
+  Milkdown,
+  MilkdownProvider,
+  useEditor,
+  useInstance,
+} from '@milkdown/react'
+import remarkDirective from 'remark-directive'
+import {
+  remarkLayoutDirectiveEmptyLines,
+  remarkLayoutDirectives,
+} from '../../../src'
+import { milkdownLayoutPlugins } from './milkdown-layout'
 
 type EditorPaneProps = {
-  editor: Editor | null
+  committedMarkdown: string
   editorMode: 'visual' | 'source'
   parseError: string
   sourceMarkdown: string
   onEditorModeChange: (mode: 'visual' | 'source') => void
   onFormatSource: () => void
   onSourceMarkdownChange: (value: string) => void
+  onVisualMarkdownChange: (value: string) => void
 }
 
 type ToolbarAction = {
   label: string
+  markdown: string
   title: string
-  run: (editor: Editor) => void
-}
-
-function createParagraph(text: string): JSONContent {
-  return {
-    type: 'paragraph',
-    content: [{ type: 'text', text }],
-  }
 }
 
 const insertActions: ToolbarAction[] = [
   {
     label: 'Stack',
     title: 'Insert a vertical stack section',
-    run: editor => {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createLayoutDirectiveNode('stack', { gap: 2 }, [
-            createParagraph('Stack item'),
-          ]),
-        )
-        .run()
-    },
+    markdown: [
+      '',
+      '::::stack{gap="2"}',
+      'Paragraph',
+      '::::',
+      '',
+    ].join('\n'),
   },
   {
     label: 'Grid',
-    title: 'Insert a simple two-cell grid',
-    run: editor => {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createLayoutDirectiveNode('grid', { cols: 12, gap: 2 }, [
-            createLayoutDirectiveNode('cell', { span: 6 }, [
-              createParagraph('Left column'),
-            ]),
-            createLayoutDirectiveNode('cell', { span: 6 }, [
-              createParagraph('Right column'),
-            ]),
-          ]),
-        )
-        .run()
-    },
+    title: 'Insert a simple two-column grid',
+    markdown: [
+      '',
+      '::::grid{cols="12" gap="2"}',
+      ':::cell{span="6"}',
+      'Left column',
+      ':::',
+      ':::cell{span="6"}',
+      'Right column',
+      ':::',
+      '::::',
+      '',
+    ].join('\n'),
   },
-  {
-    label: 'Break',
-    title: 'Insert a page break',
-    run: editor => {
-      editor.chain().focus().insertLayoutDirective('break').run()
-    },
-  },
-]
-
-const wrapActions: ToolbarAction[] = [
   {
     label: 'Box',
-    title: 'Wrap the current block in a box',
-    run: editor => {
-      editor
-        .chain()
-        .focus()
-        .wrapInLayoutDirective('box', {
-          padding: 2,
-          border: 'subtle',
-        })
-        .run()
-    },
+    title: 'Insert a boxed section',
+    markdown: [
+      '',
+      ':::box{padding="2" border="subtle"}',
+      'Box content',
+      ':::',
+      '',
+    ].join('\n'),
   },
   {
     label: 'Avoid',
-    title: 'Keep the current block together across pages',
-    run: editor => {
-      editor.chain().focus().wrapInLayoutDirective('avoid').run()
-    },
+    title: 'Insert a keep-together container',
+    markdown: [
+      '',
+      ':::avoid',
+      'Paragraph',
+      ':::',
+      '',
+    ].join('\n'),
   },
   {
     label: 'Group',
-    title: 'Wrap the current block in a group',
-    run: editor => {
-      editor.chain().focus().wrapInLayoutDirective('group').run()
-    },
+    title: 'Insert a structural group',
+    markdown: [
+      '',
+      ':::group',
+      'Paragraph',
+      ':::',
+      '',
+    ].join('\n'),
+  },
+  {
+    label: 'Break',
+    title: 'Insert a page break marker',
+    markdown: '\n::break\n',
   },
 ]
 
+function VisualToolbar() {
+  const [loading, getEditor] = useInstance()
+
+  return (
+    <>
+      {insertActions.map(action => (
+        <button
+          key={action.label}
+          type="button"
+          disabled={loading}
+          title={action.title}
+          onClick={() => {
+            const editor = getEditor()
+            editor?.action(insert(action.markdown))
+          }}
+        >
+          {action.label}
+        </button>
+      ))}
+    </>
+  )
+}
+
+function VisualEditorSurface({
+  markdown,
+  onMarkdownChange,
+}: {
+  markdown: string
+  onMarkdownChange: (markdown: string) => void
+}) {
+  const { loading } = useEditor((root) => {
+    return Editor.make()
+      .config((ctx) => {
+        ctx.set(rootCtx, root)
+        ctx.set(defaultValueCtx, markdown)
+        ctx.update(remarkPluginsCtx, plugins => [
+          ...plugins,
+          { plugin: remarkDirective, options: {} },
+          { plugin: remarkLayoutDirectives, options: {} },
+          { plugin: remarkLayoutDirectiveEmptyLines, options: {} },
+        ])
+        ctx.get(listenerCtx).markdownUpdated((_ctx, nextMarkdown) => {
+          onMarkdownChange(nextMarkdown)
+        })
+      })
+      .use(commonmark)
+      .use(history)
+      .use(listener)
+      .use(milkdownLayoutPlugins)
+  }, [])
+
+  return (
+    <div className="pane-scroll">
+      <article className="page editor-page">
+        <div className="page-body">
+          <div className="layout-surface">
+            {loading ? <div className="editor-loading">Loading editor...</div> : null}
+            <Milkdown />
+          </div>
+        </div>
+      </article>
+    </div>
+  )
+}
+
 export function EditorPane({
-  editor,
+  committedMarkdown,
   editorMode,
   parseError,
   sourceMarkdown,
   onEditorModeChange,
   onFormatSource,
   onSourceMarkdownChange,
+  onVisualMarkdownChange,
 }: EditorPaneProps) {
-  const visualDisabled = editorMode !== 'visual' || !editor
   const sourceDisabled = editorMode !== 'source'
+
+  if (editorMode === 'visual') {
+    return (
+      <MilkdownProvider>
+        <section className="pane editor-pane">
+          <div className="editor-toolbar">
+            <button
+              type="button"
+              className="is-active"
+              onClick={() => onEditorModeChange('visual')}
+            >
+              Visual
+            </button>
+            <button
+              type="button"
+              title="Edit markdown source"
+              onClick={() => onEditorModeChange('source')}
+            >
+              Source
+            </button>
+            <button
+              type="button"
+              disabled
+              title="Canonicalize source markdown in Source mode"
+            >
+              Canonicalize
+            </button>
+            <span className="toolbar-separator" />
+            <VisualToolbar />
+          </div>
+
+          <div className="editor-stage">
+            <VisualEditorSurface
+              markdown={committedMarkdown}
+              onMarkdownChange={onVisualMarkdownChange}
+            />
+          </div>
+        </section>
+      </MilkdownProvider>
+    )
+  }
 
   return (
     <section className="pane editor-pane">
       <div className="editor-toolbar">
         <button
           type="button"
-          className={editorMode === 'visual' ? 'is-active' : ''}
-          disabled={editorMode === 'source' && Boolean(parseError)}
+          disabled={Boolean(parseError)}
           onClick={() => onEditorModeChange('visual')}
         >
           Visual
         </button>
         <button
           type="button"
-          className={editorMode === 'source' ? 'is-active' : ''}
+          className="is-active"
+          title="Edit markdown source"
           onClick={() => onEditorModeChange('source')}
         >
           Source
@@ -136,78 +247,33 @@ export function EditorPane({
           disabled={sourceDisabled || Boolean(parseError)}
           title={
             parseError
-              ? 'Fix markdown errors before formatting'
-              : 'Rewrite source to canonical markdown'
+              ? 'Fix markdown errors before canonicalizing'
+              : 'Rewrite markdown to canonical layout markdown output'
           }
           onClick={onFormatSource}
         >
-          Format
+          Canonicalize
         </button>
-        <span className="toolbar-separator" />
-        {insertActions.map(action => (
-          <button
-            key={action.label}
-            type="button"
-            disabled={visualDisabled}
-            title={action.title}
-            onClick={() => {
-              if (!editor || visualDisabled) {
-                return
-              }
-
-              action.run(editor)
-            }}
-          >
-            {action.label}
-          </button>
-        ))}
-        <span className="toolbar-separator" />
-        {wrapActions.map(action => (
-          <button
-            key={action.label}
-            type="button"
-            disabled={visualDisabled}
-            title={action.title}
-            onClick={() => {
-              if (!editor || visualDisabled) {
-                return
-              }
-
-              action.run(editor)
-            }}
-          >
-            {action.label}
-          </button>
-        ))}
       </div>
 
-      {editor ? (
-        <div className="editor-stage">
-          {editorMode === 'visual' ? (
-            <div className="pane-scroll">
-              <article className="page editor-page">
-                <div className="page-body">
-                  <EditorContent editor={editor} />
-                </div>
-              </article>
+      <div className="editor-stage">
+        <article className="page editor-page source-page">
+          <div className="page-body">
+            <div className="source-note">
+              Markdown source view. It is the canonical text format now. While the
+              current text is invalid, preview and AST stay on the latest valid
+              markdown.
             </div>
-          ) : (
-            <article className="page editor-page source-page">
-              <div className="page-body">
-                <textarea
-                  aria-label="Layout source editor"
-                  className="source-editor"
-                  spellCheck={false}
-                  value={sourceMarkdown}
-                  onChange={event => onSourceMarkdownChange(event.target.value)}
-                />
-              </div>
-            </article>
-          )}
-        </div>
-      ) : (
-        <div className="editor-loading">Loading editor...</div>
-      )}
+            <textarea
+              aria-label="Layout source editor"
+              className="source-editor"
+              spellCheck={false}
+              value={sourceMarkdown}
+              onChange={event => onSourceMarkdownChange(event.target.value)}
+            />
+          </div>
+        </article>
+      </div>
     </section>
   )
 }
