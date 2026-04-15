@@ -1,5 +1,6 @@
 import {
   type Editor,
+  defaultBlockAt,
   Extension,
   Node,
   mergeAttributes,
@@ -40,6 +41,52 @@ function isDirectChildOfLayoutContainer(editor: Editor): boolean {
   }
 
   return layoutContainerNodeNameSet.has($from.node($from.depth - 1).type.name)
+}
+
+function createDefaultBlockAfterSelection(editor: Editor): boolean {
+  const { $from } = editor.state.selection
+  const layoutContainerDepth = $from.depth - 1
+  const layoutContainer = $from.node(layoutContainerDepth)
+  const insertionIndex = $from.index(layoutContainerDepth) + 1
+  const defaultBlockType = defaultBlockAt(
+    layoutContainer.contentMatchAt(insertionIndex),
+  )
+  const defaultBlock = defaultBlockType?.createAndFill()
+
+  if (!defaultBlock) {
+    return false
+  }
+
+  const insertPosition = $from.after()
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.insert(insertPosition, defaultBlock)
+      return true
+    })
+    .setTextSelection(insertPosition + 1)
+    .run()
+}
+
+function handleLayoutContainerEnter(editor: Editor): boolean {
+  const { selection } = editor.state
+  const { $from, empty } = selection
+  const parentNode = $from.parent
+  const isAtEndOfTextblock = $from.parentOffset === parentNode.content.size
+  const isEmptyParagraph =
+    parentNode.type.name === 'paragraph' && parentNode.content.size === 0
+  const isHeadingAtEnd = parentNode.type.name === 'heading' && empty && isAtEndOfTextblock
+
+  if (editor.commands.newlineInCode()) {
+    return true
+  }
+
+  if (isHeadingAtEnd || isEmptyParagraph) {
+    return createDefaultBlockAfterSelection(editor)
+  }
+
+  return editor.commands.splitBlock()
 }
 
 function numberDataAttribute(
@@ -181,11 +228,7 @@ export const Layout = Extension.create({
           return false
         }
 
-        return editor.commands.first(({ commands }) => [
-          () => commands.newlineInCode(),
-          () => commands.createParagraphNear(),
-          () => commands.splitBlock(),
-        ])
+        return handleLayoutContainerEnter(editor)
       },
     }
   },

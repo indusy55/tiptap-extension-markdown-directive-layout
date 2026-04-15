@@ -9,6 +9,10 @@ import {
 } from '../src'
 
 describe('layout extensions', () => {
+  function getLayoutEnterShortcut() {
+    return Layout.config.addKeyboardShortcuts?.call({}).Enter
+  }
+
   test('exports a complete tiptap kit', () => {
     expect(LayoutKit.name).toBe('layoutKit')
     expect(getLayoutExtensions()).toHaveLength(8)
@@ -27,7 +31,7 @@ describe('layout extensions', () => {
     })
   })
 
-  test('keeps direct child blocks inside the same layout container on Enter', () => {
+  test('turns heading end Enter into a new default block inside the same layout container', () => {
     const editor = new Editor({
       immediatelyRender: false,
       extensions: [StarterKit, LayoutKit],
@@ -62,7 +66,78 @@ describe('layout extensions', () => {
 
     editor.commands.setTextSelection(headingEnd)
 
-    const enter = Layout.config.addKeyboardShortcuts?.call({}).Enter
+    const enter = getLayoutEnterShortcut()
+
+    expect(enter?.({ editor })).toBe(true)
+    expect(editor.getJSON()).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'layoutBox',
+          attrs: {
+            padding: 0,
+            margin: 0,
+            border: 'none',
+            radius: 0,
+            bg: 'none',
+            shadow: 'none',
+            overflow: 'clip',
+          },
+          content: [
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'The Story' }],
+            },
+            { type: 'paragraph' },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'After' }],
+            },
+          ],
+        },
+      ],
+    })
+
+    editor.destroy()
+  })
+
+  test('keeps direct child blocks inside the same layout container on repeated Enter', () => {
+    const editor = new Editor({
+      immediatelyRender: false,
+      extensions: [StarterKit, LayoutKit],
+      content: {
+        type: 'doc',
+        content: [
+          createLayoutDirectiveNode('box', {}, [
+            {
+              type: 'heading',
+              attrs: { level: 2 },
+              content: [{ type: 'text', text: 'The Story' }],
+            },
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'After' }],
+            },
+          ]),
+        ],
+      },
+    })
+
+    let headingEnd = 0
+
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'heading' && node.textContent === 'The Story') {
+        headingEnd = position + node.nodeSize - 1
+        return false
+      }
+
+      return true
+    })
+
+    editor.commands.setTextSelection(headingEnd)
+
+    const enter = getLayoutEnterShortcut()
 
     expect(enter?.({ editor })).toBe(true)
     expect(enter?.({ editor })).toBe(true)
@@ -95,6 +170,50 @@ describe('layout extensions', () => {
               type: 'paragraph',
               content: [{ type: 'text', text: 'After' }],
             },
+          ],
+        },
+      ],
+    })
+
+    editor.destroy()
+  })
+
+  test('creates another paragraph instead of leaving the layout container from an empty paragraph', () => {
+    const editor = new Editor({
+      immediatelyRender: false,
+      extensions: [StarterKit, LayoutKit],
+      content: {
+        type: 'doc',
+        content: [
+          createLayoutDirectiveNode('box', {}, [
+            { type: 'paragraph' },
+          ]),
+        ],
+      },
+    })
+
+    editor.commands.setTextSelection(2)
+
+    const enter = getLayoutEnterShortcut()
+
+    expect(enter?.({ editor })).toBe(true)
+    expect(editor.getJSON()).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'layoutBox',
+          attrs: {
+            padding: 0,
+            margin: 0,
+            border: 'none',
+            radius: 0,
+            bg: 'none',
+            shadow: 'none',
+            overflow: 'clip',
+          },
+          content: [
+            { type: 'paragraph' },
+            { type: 'paragraph' },
           ],
         },
       ],

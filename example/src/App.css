@@ -267,6 +267,10 @@
   display: inline;
 }
 
+.preview-pane .layout-surface p:empty {
+  min-height: 1.7em;
+}
+
 .editor-pane .layout-surface li > p {
   display: block;
 }
