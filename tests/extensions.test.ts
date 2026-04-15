@@ -6,6 +6,8 @@ import {
   LayoutKit,
   createLayoutDirectiveNode,
   getLayoutExtensions,
+  isLayoutNodeName,
+  nodeNameToDirective,
 } from '../src'
 
 describe('layout extensions', () => {
@@ -29,6 +31,13 @@ describe('layout extensions', () => {
       attrs: { gap: 2 },
       content: [],
     })
+  })
+
+  test('maps between public directive names and internal node names', () => {
+    expect(nodeNameToDirective('layoutBox')).toBe('box')
+    expect(nodeNameToDirective('paragraph')).toBeNull()
+    expect(isLayoutNodeName('layoutGrid')).toBe(true)
+    expect(isLayoutNodeName('heading')).toBe(false)
   })
 
   test('turns heading end Enter into a new default block inside the same layout container', () => {

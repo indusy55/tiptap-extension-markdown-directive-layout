@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   createLayoutMarkdownManager,
   createLayoutDirectiveNode,
+  getLayoutMarkdownBaseExtensions,
   parseLayoutDocument,
   serializeLayoutDocument,
 } from '../src'
@@ -101,5 +102,41 @@ describe('layout markdown', () => {
     expect(manager.serialize(parseLayoutDocument(markdown))).toBe(
       serializeLayoutDocument(parseLayoutDocument(markdown)),
     )
+  })
+
+  test('omits default attributes from canonical markdown output', () => {
+    const markdown = serializeLayoutDocument({
+      type: 'doc',
+      content: [
+        createLayoutDirectiveNode('grid', { cols: 12, gap: 0 }, [
+          createLayoutDirectiveNode('cell', { span: 1 }, [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'defaulted' }],
+            },
+          ]),
+        ]),
+      ],
+    })
+
+    expect(markdown).toContain(':::grid')
+    expect(markdown).not.toContain('cols=')
+    expect(markdown).not.toContain('gap=')
+    expect(markdown).not.toContain('span=')
+  })
+
+  test('exposes the default extension bundle used by the markdown manager', () => {
+    const extensions = getLayoutMarkdownBaseExtensions()
+
+    expect(extensions.length).toBeGreaterThan(1)
+    expect(
+      extensions.some(extension => 'name' in extension && extension.name === 'layoutKit'),
+    ).toBe(false)
+    expect(
+      extensions.some(extension => 'name' in extension && extension.name === 'layout'),
+    ).toBe(true)
+    expect(
+      extensions.some(extension => 'name' in extension && extension.name === 'layoutBox'),
+    ).toBe(true)
   })
 })

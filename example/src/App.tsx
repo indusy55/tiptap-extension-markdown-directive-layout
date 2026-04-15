@@ -11,6 +11,7 @@ function App() {
     documentJson,
     editor,
     editorMode,
+    formatSourceMarkdown,
     parseError,
     setEditorMode,
     setSourceMarkdown,
@@ -24,8 +25,10 @@ function App() {
         <EditorPane
           editor={editor}
           editorMode={editorMode}
+          parseError={parseError}
           sourceMarkdown={sourceMarkdown}
           onEditorModeChange={setEditorMode}
+          onFormatSource={formatSourceMarkdown}
           onSourceMarkdownChange={setSourceMarkdown}
         />
         <PreviewPane documentJson={documentJson} parseError={parseError} />

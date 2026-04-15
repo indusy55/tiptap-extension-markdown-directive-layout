@@ -3,32 +3,56 @@ import type { JSONContent } from '@tiptap/core'
 import Highlight from '@tiptap/extension-highlight'
 import StarterKit from '@tiptap/starter-kit'
 import { useEditor } from '@tiptap/react'
-import {
-  LayoutKit,
-  parseLayoutDocument,
-  serializeLayoutDocument,
-} from '../../../src'
+import { LayoutKit } from '../../../src'
 import { exampleMarkdown } from '../demo'
+import {
+  canonicalizeSourceMarkdown,
+  parseSourceMarkdown,
+  resolveModeSwitch,
+  type PlaygroundEditorMode,
+} from './source-sync'
 
 export function useLayoutPlayground() {
-  const [editorMode, setEditorMode] = useState<'visual' | 'source'>('visual')
+  const [editorMode, setEditorMode] = useState<PlaygroundEditorMode>('visual')
   const [documentJson, setDocumentJson] = useState<JSONContent>(
-    parseLayoutDocument(exampleMarkdown),
+    parseSourceMarkdown(exampleMarkdown).documentJson!,
   )
   const [sourceMarkdown, setSourceMarkdown] = useState(exampleMarkdown)
   const [parseError, setParseError] = useState('')
-  const previousEditorModeRef = useRef<'visual' | 'source'>('visual')
+  const previousEditorModeRef = useRef<PlaygroundEditorMode>('visual')
 
   function updateSourceMarkdown(nextMarkdown: string) {
     setSourceMarkdown(nextMarkdown)
 
-    try {
-      const nextDocument = parseLayoutDocument(nextMarkdown)
+    const { documentJson: nextDocument, parseError: nextParseError } =
+      parseSourceMarkdown(nextMarkdown)
+
+    if (nextDocument) {
       setDocumentJson(nextDocument)
-      setParseError('')
-    } catch (error) {
-      setParseError(error instanceof Error ? error.message : 'Unknown parse error')
     }
+
+    setParseError(nextParseError)
+  }
+
+  function formatSourceMarkdown() {
+    if (parseError) {
+      return
+    }
+
+    setSourceMarkdown(canonicalizeSourceMarkdown(documentJson))
+  }
+
+  function updateEditorMode(nextMode: PlaygroundEditorMode) {
+    const resolved = resolveModeSwitch({
+      currentMode: editorMode,
+      nextMode,
+      documentJson,
+      sourceMarkdown,
+      parseError,
+    })
+
+    setEditorMode(resolved.nextMode)
+    setSourceMarkdown(resolved.sourceMarkdown)
   }
 
   const editor = useEditor({
@@ -42,13 +66,13 @@ export function useLayoutPlayground() {
     content: documentJson,
     onCreate: ({ editor: currentEditor }) => {
       setDocumentJson(currentEditor.getJSON())
-      setSourceMarkdown(serializeLayoutDocument(currentEditor.getJSON()))
+      setSourceMarkdown(canonicalizeSourceMarkdown(currentEditor.getJSON()))
       setParseError('')
     },
     onUpdate: ({ editor: currentEditor }) => {
       const nextDocument = currentEditor.getJSON()
       setDocumentJson(nextDocument)
-      setSourceMarkdown(serializeLayoutDocument(nextDocument))
+      setSourceMarkdown(canonicalizeSourceMarkdown(nextDocument))
       setParseError('')
     },
   })
@@ -73,8 +97,9 @@ export function useLayoutPlayground() {
     documentJson,
     editor,
     editorMode,
+    formatSourceMarkdown,
     parseError,
-    setEditorMode,
+    setEditorMode: updateEditorMode,
     setSourceMarkdown: updateSourceMarkdown,
     sourceMarkdown,
   }

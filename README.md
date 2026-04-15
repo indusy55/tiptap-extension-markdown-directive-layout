@@ -17,6 +17,18 @@ The intended architecture is:
 - The conversion layer is explicit and based on official `@tiptap/markdown`
 - Custom layout directives only extend the markdown layer where necessary
 
+## Recommended API
+
+Most integrations only need these five entry points:
+
+- `LayoutKit`: register the full layout extension set in a Tiptap editor
+- `createLayoutMarkdownManager()`: create an official `MarkdownManager` preloaded with layout support
+- `parseLayoutDocument()`: convert directive markdown into Tiptap JSON
+- `serializeLayoutDocument()`: convert Tiptap JSON back into canonical directive markdown
+- `createLayoutDirectiveNode()`: build normalized layout nodes programmatically
+
+Everything else exported by the package is either lower-level composition API or directive internals for advanced use cases.
+
 Design notes:
 
 - [Architecture (ZH)](./docs/architecture_v2_zh.md)
@@ -79,6 +91,34 @@ In practice, a common flow looks like this:
 - Let users edit through Tiptap JSON / ProseMirror state
 - Serialize the updated document with `editor.getMarkdown()` or `serializeLayoutDocument()`
 
+### Source and Visual Modes
+
+If you build a dual-mode editor like the playground in this repo, the intended synchronization model is:
+
+- `Visual` mode: Tiptap JSON is the live source of truth
+- `Source` mode: Markdown text is the live source of truth
+- preview and AST always render from the latest valid JSON
+- mode switches are the place where markdown is canonicalized through `parse -> serialize`
+
+This means source mode is not WYSIWYG. Blank lines and equivalent markdown spellings may be normalized when you format the source or switch back into visual mode.
+
+## Stability Contract
+
+The library-level contract we intend to keep stable is:
+
+- Markdown is the public persistence format
+- Tiptap JSON is the in-memory editing format
+- `stack`, `grid`, `cell`, `box`, `break`, `avoid`, and `group` keep their directive names, node names, and normalized attribute rules
+- `parseLayoutDocument()`, `serializeLayoutDocument()`, and `createLayoutMarkdownManager()` stay aligned with the official `@tiptap/markdown` pipeline
+- `LayoutKit` and the `Layout` commands remain the supported editor integration surface
+- direct child block editing inside layout containers keeps the guarded `Enter` behavior needed to avoid unintentionally leaving the container
+
+The following should be treated as advanced API, not the primary compatibility target:
+
+- low-level directive tokenizer helpers from `./directive`
+- internal singleton reuse in `getLayoutMarkdownManager()`
+- playground-only source/visual synchronization utilities in `example/`
+
 ## Markdown API
 
 ### `createLayoutMarkdownManager(options?)`
@@ -94,6 +134,8 @@ const source = markdown.serialize(document)
 ```
 
 If you need extra markdown-aware extensions, pass your own `extensions` array.
+
+`createLayoutMarkdownManager()` is the recommended entry point when you want the library to own markdown parsing and serialization behavior explicitly.
 
 ### `parseLayoutDocument(markdown)`
 
@@ -177,6 +219,10 @@ This keeps the architecture aligned with Tiptap's official model:
 - Markdown at the boundary
 - JSON during editing
 - custom layout directives handled through extension-level markdown specs
+
+## Advanced API
+
+The package also exports low-level directive helpers such as `createDirectiveContainerTokenizer()` and `renderDirectiveMarkdown()`. They are useful when you want to extend directive parsing yourself, but most consumers should prefer the higher-level layout API above.
 
 ### `getLayoutExtensions()` and `createLayoutKit()`
 

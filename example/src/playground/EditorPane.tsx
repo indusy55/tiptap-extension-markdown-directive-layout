@@ -5,8 +5,10 @@ import { createLayoutDirectiveNode } from '../../../src'
 type EditorPaneProps = {
   editor: Editor | null
   editorMode: 'visual' | 'source'
+  parseError: string
   sourceMarkdown: string
   onEditorModeChange: (mode: 'visual' | 'source') => void
+  onFormatSource: () => void
   onSourceMarkdownChange: (value: string) => void
 }
 
@@ -102,11 +104,14 @@ const wrapActions: ToolbarAction[] = [
 export function EditorPane({
   editor,
   editorMode,
+  parseError,
   sourceMarkdown,
   onEditorModeChange,
+  onFormatSource,
   onSourceMarkdownChange,
 }: EditorPaneProps) {
   const visualDisabled = editorMode !== 'visual' || !editor
+  const sourceDisabled = editorMode !== 'source'
 
   return (
     <section className="pane editor-pane">
@@ -114,6 +119,7 @@ export function EditorPane({
         <button
           type="button"
           className={editorMode === 'visual' ? 'is-active' : ''}
+          disabled={editorMode === 'source' && Boolean(parseError)}
           onClick={() => onEditorModeChange('visual')}
         >
           Visual
@@ -124,6 +130,18 @@ export function EditorPane({
           onClick={() => onEditorModeChange('source')}
         >
           Source
+        </button>
+        <button
+          type="button"
+          disabled={sourceDisabled || Boolean(parseError)}
+          title={
+            parseError
+              ? 'Fix markdown errors before formatting'
+              : 'Rewrite source to canonical markdown'
+          }
+          onClick={onFormatSource}
+        >
+          Format
         </button>
         <span className="toolbar-separator" />
         {insertActions.map(action => (

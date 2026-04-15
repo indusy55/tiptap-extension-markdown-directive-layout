@@ -19,6 +19,12 @@ describe('layout attributes', () => {
     ).toThrow(/between 1 and 24/)
   })
 
+  test('rejects unknown attributes', () => {
+    expect(() =>
+      normalizeLayoutDirectiveAttributes('break', { gap: 1 }),
+    ).toThrow(/does not support attributes/)
+  })
+
   test('serializes only non-default attributes', () => {
     expect(
       serializeDirectiveAttributes('box', {
@@ -30,5 +36,14 @@ describe('layout attributes', () => {
       padding: '2',
       border: 'subtle',
     })
+  })
+
+  test('omits default attributes during serialization', () => {
+    expect(
+      serializeDirectiveAttributes('grid', {
+        cols: 12,
+        gap: 0,
+      }),
+    ).toBeUndefined()
   })
 })
