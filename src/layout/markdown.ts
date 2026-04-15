@@ -1,18 +1,36 @@
-import type { JSONContent } from '@tiptap/core'
+import type { AnyExtension, JSONContent } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { MarkdownManager } from '@tiptap/markdown'
 import { getLayoutExtensions } from './extensions'
 
+export type LayoutMarkdownManagerOptions = Omit<
+  NonNullable<ConstructorParameters<typeof MarkdownManager>[0]>,
+  'extensions'
+> & {
+  extensions?: AnyExtension[]
+}
+
 let layoutMarkdownManager: MarkdownManager | null = null
 
-function getLayoutMarkdownManager(): MarkdownManager {
+export function getLayoutMarkdownBaseExtensions(): AnyExtension[] {
+  return [StarterKit, ...getLayoutExtensions()]
+}
+
+export function createLayoutMarkdownManager(
+  options: LayoutMarkdownManagerOptions = {},
+): MarkdownManager {
+  return new MarkdownManager({
+    ...options,
+    extensions: options.extensions ?? getLayoutMarkdownBaseExtensions(),
+  })
+}
+
+export function getLayoutMarkdownManager(): MarkdownManager {
   if (layoutMarkdownManager) {
     return layoutMarkdownManager
   }
 
-  layoutMarkdownManager = new MarkdownManager({
-    extensions: [StarterKit, ...getLayoutExtensions()],
-  })
+  layoutMarkdownManager = createLayoutMarkdownManager()
 
   return layoutMarkdownManager
 }

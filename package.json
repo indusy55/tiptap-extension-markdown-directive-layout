@@ -2,7 +2,7 @@
   "name": "@indusy55/tiptap-extension-markdown-directive-layout",
   "type": "module",
   "version": "0.0.0",
-  "description": "Tiptap layout extensions backed by remark-directive.",
+  "description": "Tiptap layout extensions built on the official @tiptap/markdown pipeline.",
   "author": "Indusy <indusy@outlook.com>",
   "license": "MIT",
   "homepage": "https://github.com/indusy55/tiptap-extension-markdown-directive-layout#readme",

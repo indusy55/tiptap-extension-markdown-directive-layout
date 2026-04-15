@@ -1,15 +1,26 @@
 # @indusy55/tiptap-extension-markdown-directive-layout
 
-`@indusy55/tiptap-extension-markdown-directive-layout` is a small layout toolkit for Tiptap built around `remark-directive`-style markdown.
+`@indusy55/tiptap-extension-markdown-directive-layout` is a small layout toolkit for Tiptap built on top of the official `@tiptap/markdown` pipeline.
 
 It gives you:
 
 - Tiptap node extensions for layout directives such as `stack`, `grid`, `cell`, `box`, `break`, `avoid`, and `group`
-- A markdown parser that turns directive-based markdown into Tiptap JSON
-- A serializer that turns Tiptap JSON back into directive-based markdown
+- A preconfigured markdown manager that turns directive-based markdown into Tiptap JSON and back
 - Command helpers for inserting, wrapping, and updating layout nodes
 
 The package is useful when you want to keep layout information in a structured, text-friendly format while still editing content through Tiptap.
+
+The intended architecture is:
+
+- Markdown is the input/output format
+- Tiptap JSON is the live editor state
+- The conversion layer is explicit and based on official `@tiptap/markdown`
+- Custom layout directives only extend the markdown layer where necessary
+
+Design notes:
+
+- [Architecture (ZH)](./docs/architecture_v2_zh.md)
+- [Playground Model (ZH)](./docs/playground_model_v2_zh.md)
 
 ## Installation
 
@@ -27,12 +38,14 @@ pnpm add @tiptap/core @tiptap/starter-kit
 
 ```ts
 import { Editor } from '@tiptap/core'
+import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import {
+  createLayoutMarkdownManager,
   LayoutKit,
-  parseLayoutDocument,
-  serializeLayoutDocument,
 } from '@indusy55/tiptap-extension-markdown-directive-layout'
+
+const markdown = createLayoutMarkdownManager()
 
 const source = `
 ::::stack{gap=3}
@@ -44,11 +57,11 @@ Hello layout
 `
 
 const editor = new Editor({
-  extensions: [StarterKit, LayoutKit],
-  content: parseLayoutDocument(source),
+  extensions: [StarterKit, LayoutKit, Markdown],
+  content: markdown.parse(source),
 })
 
-const markdown = serializeLayoutDocument(editor.getJSON())
+const output = editor.getMarkdown()
 ```
 
 ## How It Works
@@ -61,16 +74,30 @@ The library bridges three representations of the same document:
 
 In practice, a common flow looks like this:
 
-- Parse markdown with `parseLayoutDocument()`
+- Parse markdown with `createLayoutMarkdownManager()` or `parseLayoutDocument()`
 - Feed the returned JSON into a Tiptap editor
-- Let users edit through Tiptap
-- Serialize the updated document with `serializeLayoutDocument()`
+- Let users edit through Tiptap JSON / ProseMirror state
+- Serialize the updated document with `editor.getMarkdown()` or `serializeLayoutDocument()`
 
 ## Markdown API
 
+### `createLayoutMarkdownManager(options?)`
+
+Creates a preconfigured official `MarkdownManager` with `StarterKit` and all layout extensions registered.
+
+```ts
+import { createLayoutMarkdownManager } from '@indusy55/tiptap-extension-markdown-directive-layout'
+
+const markdown = createLayoutMarkdownManager()
+const document = markdown.parse(':::box\n\nHello\n\n:::')
+const source = markdown.serialize(document)
+```
+
+If you need extra markdown-aware extensions, pass your own `extensions` array.
+
 ### `parseLayoutDocument(markdown)`
 
-Parses directive-based markdown into a Tiptap `doc` JSON object.
+Parses directive-based markdown into a Tiptap `doc` JSON object using the shared preconfigured markdown manager.
 
 ```ts
 import { parseLayoutDocument } from '@indusy55/tiptap-extension-markdown-directive-layout'
@@ -89,7 +116,7 @@ Right
 
 ### `serializeLayoutDocument(content)`
 
-Serializes a Tiptap JSON document back into markdown using `remark-directive` syntax.
+Serializes a Tiptap JSON document back into markdown using directive syntax on top of the official markdown pipeline.
 
 ```ts
 import {
@@ -129,6 +156,27 @@ const editor = new Editor({
   extensions: [StarterKit, LayoutKit],
 })
 ```
+
+### Official Markdown Integration
+
+If you want the editor instance itself to expose `editor.getMarkdown()` and `editor.markdown`, mount the official `Markdown` extension alongside `LayoutKit`.
+
+```ts
+import { Editor } from '@tiptap/core'
+import { Markdown } from '@tiptap/markdown'
+import StarterKit from '@tiptap/starter-kit'
+import { LayoutKit } from '@indusy55/tiptap-extension-markdown-directive-layout'
+
+const editor = new Editor({
+  extensions: [StarterKit, LayoutKit, Markdown],
+})
+```
+
+This keeps the architecture aligned with Tiptap's official model:
+
+- Markdown at the boundary
+- JSON during editing
+- custom layout directives handled through extension-level markdown specs
 
 ### `getLayoutExtensions()` and `createLayoutKit()`
 

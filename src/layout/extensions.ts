@@ -1,4 +1,5 @@
 import {
+  type Editor,
   Extension,
   Node,
   mergeAttributes,
@@ -15,7 +16,7 @@ import type {
   LayoutDirectiveName,
   RawAttributes,
 } from './schema'
-import { LAYOUT_NODE_NAMES } from './schema'
+import { CONTAINER_LAYOUT_DIRECTIVE_NAMES, LAYOUT_NODE_NAMES } from './schema'
 
 type HtmlElementLike = {
   getAttribute: (name: string) => string | null
@@ -25,6 +26,20 @@ type LayoutHtmlAttribute = {
   default: unknown
   parseHTML: (element: HtmlElementLike) => unknown
   renderHTML: (attributes: Record<string, unknown>) => Record<string, string>
+}
+
+const layoutContainerNodeNameSet = new Set<string>(
+  CONTAINER_LAYOUT_DIRECTIVE_NAMES.map(directive => LAYOUT_NODE_NAMES[directive]),
+)
+
+function isDirectChildOfLayoutContainer(editor: Editor): boolean {
+  const { $from } = editor.state.selection
+
+  if (!$from.parent.isTextblock || $from.depth < 1) {
+    return false
+  }
+
+  return layoutContainerNodeNameSet.has($from.node($from.depth - 1).type.name)
 }
 
 function numberDataAttribute(
@@ -159,6 +174,21 @@ declare module '@tiptap/core' {
 
 export const Layout = Extension.create({
   name: 'layout',
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        if (!isDirectChildOfLayoutContainer(editor)) {
+          return false
+        }
+
+        return editor.commands.first(({ commands }) => [
+          () => commands.newlineInCode(),
+          () => commands.createParagraphNear(),
+          () => commands.splitBlock(),
+        ])
+      },
+    }
+  },
   addCommands() {
     return {
       insertLayoutDirective:

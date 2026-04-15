@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  createLayoutMarkdownManager,
   createLayoutDirectiveNode,
   parseLayoutDocument,
   serializeLayoutDocument,
@@ -90,5 +91,15 @@ describe('layout markdown', () => {
     expect(markdown).toContain('cell{span="3"}')
     expect(markdown).toContain('box{padding="2" border="subtle"}')
     expect(parseLayoutDocument(markdown)).toEqual(document)
+  })
+
+  test('exposes a preconfigured markdown manager based on official markdown support', () => {
+    const manager = createLayoutMarkdownManager()
+    const markdown = ':::box\n\nhello\n\n:::'
+
+    expect(manager.parse(markdown)).toEqual(parseLayoutDocument(markdown))
+    expect(manager.serialize(parseLayoutDocument(markdown))).toBe(
+      serializeLayoutDocument(parseLayoutDocument(markdown)),
+    )
   })
 })
