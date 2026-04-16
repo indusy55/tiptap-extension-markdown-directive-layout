@@ -2,7 +2,11 @@ import { editorViewCtx } from '@milkdown/kit/core'
 import {
   TextSelection,
 } from '@milkdown/kit/prose/state'
-import type { Node as ProseNode, NodeType } from '@milkdown/kit/prose/model'
+import type {
+  DOMOutputSpec,
+  Node as ProseNode,
+  NodeType,
+} from '@milkdown/kit/prose/model'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { newlineInCode, splitBlock } from '@milkdown/kit/prose/commands'
 import { $node, $useKeymap } from '@milkdown/kit/utils'
@@ -13,10 +17,19 @@ import {
   type LayoutDirectiveAttributesMap,
   type LayoutDirectiveName,
 } from '../../../src'
+import {
+  deserializeDirectiveLabel,
+  extractDirectiveLabel,
+  getDirectiveLabelText,
+  normalizeDirectiveLabel,
+  serializeDirectiveLabel,
+  stripContainerDirectiveLabel,
+  type DirectiveLabel,
+} from './directive-label'
 
 type LayoutHtmlAttribute = {
-  defaultValue: string | number
-  parse: (element: HTMLElement) => string | number
+  defaultValue: unknown
+  parse: (element: HTMLElement) => unknown
   render: (attributes: Record<string, unknown>) => Record<string, string>
 }
 
@@ -160,7 +173,7 @@ function stringDataAttribute(
 
 function createNodeAttributes(
   spec: Record<string, LayoutHtmlAttribute>,
-): Record<string, { default: string | number }> {
+): Record<string, { default: unknown }> {
   return Object.fromEntries(
     Object.entries(spec).map(([key, value]) => [
       key,
@@ -172,7 +185,7 @@ function createNodeAttributes(
 function parseNodeAttributes(
   spec: Record<string, LayoutHtmlAttribute>,
   element: HTMLElement,
-): Record<string, string | number> {
+): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(spec).map(([key, value]) => [key, value.parse(element)]),
   )
@@ -198,19 +211,88 @@ function getDirectiveAttributes<T extends LayoutDirectiveName>(
   )
 }
 
+function directiveLabelDataAttribute(): LayoutHtmlAttribute {
+  const htmlAttribute = 'data-layout-label'
+
+  return {
+    defaultValue: null,
+    parse: element => deserializeDirectiveLabel(element.getAttribute(htmlAttribute)),
+    render: attributes => {
+      const value = serializeDirectiveLabel(
+        normalizeDirectiveLabel(attributes.label),
+      )
+      const rendered: Record<string, string> = value
+        ? { [htmlAttribute]: value }
+        : {}
+
+      return rendered
+    },
+  }
+}
+
+function createDirectiveContainerAttrs(
+  attributeSpec: Record<string, LayoutHtmlAttribute>,
+) {
+  return {
+    ...createNodeAttributes(attributeSpec),
+    label: { default: null },
+  }
+}
+
+function createDirectiveLeafAttrs() {
+  return {
+    label: { default: null },
+  }
+}
+
+function getStoredDirectiveLabel(
+  attributes: Record<string, unknown>,
+): DirectiveLabel {
+  return normalizeDirectiveLabel(attributes.label)
+}
+
+function getDirectiveLabelPreview(
+  attributes: Record<string, unknown>,
+): string {
+  return getDirectiveLabelText(getStoredDirectiveLabel(attributes))
+}
+
+function createDirectiveContainerDom(
+  directive: string,
+  _attributes: Record<string, unknown>,
+  renderedAttributes: Record<string, string>,
+): DOMOutputSpec {
+  return [
+    'div',
+    {
+      'data-layout-directive': directive,
+      class: `layout-directive layout-${directive}`,
+      ...renderedAttributes,
+    },
+    0,
+  ]
+}
+
 function createDirectiveContainerNode<T extends Exclude<LayoutDirectiveName, 'break'>>(
   directive: T,
   nodeName: string,
   attributeSpec: Record<string, LayoutHtmlAttribute>,
 ) {
   return $node(nodeName, () => ({
-    attrs: createNodeAttributes(attributeSpec),
+    attrs: createDirectiveContainerAttrs(attributeSpec),
     content: 'block+',
     defining: true,
     group: 'block',
     parseDOM: [
       {
-        getAttrs: dom => parseNodeAttributes(attributeSpec, dom as HTMLElement),
+        getAttrs: dom =>
+          parseNodeAttributes(
+            {
+              ...attributeSpec,
+              label: directiveLabelDataAttribute(),
+            },
+            dom as HTMLElement,
+          ),
         tag: `div[data-layout-directive="${directive}"]`,
       },
     ],
@@ -218,28 +300,42 @@ function createDirectiveContainerNode<T extends Exclude<LayoutDirectiveName, 'br
       match: node =>
         node.type === 'containerDirective' && node.name === directive,
       runner: (state, node, type) => {
-        state.openNode(type, getDirectiveAttributes(directive, node as DirectiveNode))
-        if (node.children) {
-          state.next(node.children)
+        const directiveNode = node as DirectiveNode
+        const label = extractDirectiveLabel(directiveNode)
+        const children = stripContainerDirectiveLabel(directiveNode)
+
+        state.openNode(type, {
+          ...getDirectiveAttributes(directive, directiveNode),
+          label,
+        })
+        if (children.length > 0) {
+          state.next(children)
         }
         state.closeNode()
       },
     },
-    toDOM: node => [
-      'div',
-      {
-        'data-layout-directive': directive,
-        class: `layout-directive layout-${directive}`,
-        ...renderNodeAttributes(attributeSpec, node.attrs as Record<string, unknown>),
-      },
-      0,
-    ],
+    toDOM: node =>
+      createDirectiveContainerDom(
+        directive,
+        node.attrs as Record<string, unknown>,
+        renderNodeAttributes(
+          {
+            ...attributeSpec,
+            label: directiveLabelDataAttribute(),
+          },
+          node.attrs as Record<string, unknown>,
+        ),
+      ),
     toMarkdown: {
       match: node => node.type.name === nodeName,
       runner: (state, node) => {
+        const { label, ...directiveAttributes } = node.attrs as Record<
+          string,
+          unknown
+        >
         const attributes = serializeDirectiveAttributes(
           directive,
-          node.attrs as Record<string, unknown>,
+          directiveAttributes,
         )
 
         state.openNode(
@@ -249,6 +345,15 @@ function createDirectiveContainerNode<T extends Exclude<LayoutDirectiveName, 'br
             ? { attributes, name: directive }
             : { name: directive },
         )
+        const labelNodes = getStoredDirectiveLabel({ label })
+        if (labelNodes) {
+          state.addNode(
+            'paragraph',
+            labelNodes,
+            undefined,
+            { data: { directiveLabel: true } },
+          )
+        }
         serializeDirectiveChildren(state, node)
         state.closeNode()
       },
@@ -261,30 +366,52 @@ function createDirectiveLeafNode(
   nodeName: string,
 ) {
   return $node(nodeName, () => ({
+    attrs: createDirectiveLeafAttrs(),
     atom: true,
     defining: true,
     group: 'block',
-    parseDOM: [{ tag: `div[data-layout-directive="${directive}"]` }],
+    parseDOM: [
+      {
+        getAttrs: dom =>
+          parseNodeAttributes(
+            { label: directiveLabelDataAttribute() },
+            dom as HTMLElement,
+          ),
+        tag: `div[data-layout-directive="${directive}"]`,
+      },
+    ],
     parseMarkdown: {
       match: node => node.type === 'leafDirective' && node.name === directive,
-      runner: (state, _node, type) => {
-        state.addNode(type)
+      runner: (state, node, type) => {
+        state.addNode(type, {
+          label: extractDirectiveLabel(node as DirectiveNode),
+        })
       },
     },
     selectable: true,
-    toDOM: () => [
+    toDOM: node => [
       'div',
       {
         'data-layout-directive': directive,
         class: `layout-directive layout-${directive}`,
+        ...renderNodeAttributes(
+          { label: directiveLabelDataAttribute() },
+          node.attrs as Record<string, unknown>,
+        ),
       },
+      getDirectiveLabelPreview(node.attrs as Record<string, unknown>),
     ],
     toMarkdown: {
       match: node => node.type.name === nodeName,
-      runner: state => {
-        state.addNode('leafDirective', undefined, undefined, {
+      runner: (state, node) => {
+        state.addNode(
+          'leafDirective',
+          getStoredDirectiveLabel(node.attrs as Record<string, unknown>) ?? [],
+          undefined,
+          {
           name: directive,
-        })
+          },
+        )
       },
     },
   }))

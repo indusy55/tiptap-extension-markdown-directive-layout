@@ -100,6 +100,22 @@ describe('layout markdown', () => {
     expect(() => parseLayoutMarkdown(':::break\n:::')).toThrow(/must use leaf syntax/)
   })
 
+  test('round-trips directive labels through core markdown processing', () => {
+    const containerMarkdown = [
+      ':::box[Lead]',
+      'Body',
+      ':::',
+    ].join('\n')
+    const leafMarkdown = '::break[Gap]'
+
+    expect(stringifyLayoutMarkdown(parseLayoutMarkdown(containerMarkdown))).toBe(
+      containerMarkdown,
+    )
+    expect(stringifyLayoutMarkdown(parseLayoutMarkdown(leafMarkdown))).toBe(
+      leafMarkdown,
+    )
+  })
+
   test('converts layout container <br /> markers into empty paragraphs for editor parsers', () => {
     const root = {
       type: 'root' as const,
