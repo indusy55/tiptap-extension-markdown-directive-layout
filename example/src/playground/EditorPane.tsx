@@ -1,12 +1,14 @@
 import {
   defaultValueCtx,
   Editor,
+  editorViewCtx,
   remarkPluginsCtx,
   rootCtx,
 } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
+import { TextSelection } from '@milkdown/kit/prose/state'
 import { insert } from '@milkdown/kit/utils'
 import {
   Milkdown,
@@ -14,6 +16,7 @@ import {
   useEditor,
   useInstance,
 } from '@milkdown/react'
+import { useEffect, useRef } from 'react'
 import remarkDirective from 'remark-directive'
 import {
   remarkLayoutDirectiveEmptyLines,
@@ -106,7 +109,22 @@ const insertActions: ToolbarAction[] = [
   },
 ]
 
-function VisualToolbar() {
+function moveSelectionToDocumentEnd(editor: ReturnType<typeof useInstance>[1]) {
+  const instance = editor()
+
+  instance?.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    const selection = TextSelection.atEnd(view.state.doc)
+
+    view.dispatch(view.state.tr.setSelection(selection))
+  })
+}
+
+function VisualToolbar({
+  hasUserPlacedCursorRef,
+}: {
+  hasUserPlacedCursorRef: { current: boolean }
+}) {
   const [loading, getEditor] = useInstance()
 
   return (
@@ -118,8 +136,11 @@ function VisualToolbar() {
           disabled={loading}
           title={action.title}
           onClick={() => {
-            const editor = getEditor()
-            editor?.action(insert(action.markdown))
+            if (!hasUserPlacedCursorRef.current) {
+              moveSelectionToDocumentEnd(getEditor)
+            }
+
+            getEditor()?.action(insert(action.markdown))
           }}
         >
           {action.label}
@@ -132,9 +153,11 @@ function VisualToolbar() {
 function VisualEditorSurface({
   markdown,
   onMarkdownChange,
+  onEditorFocus,
 }: {
   markdown: string
   onMarkdownChange: (markdown: string) => void
+  onEditorFocus: () => void
 }) {
   const { loading } = useEditor((root) => {
     return Editor.make()
@@ -149,6 +172,9 @@ function VisualEditorSurface({
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, nextMarkdown) => {
           onMarkdownChange(nextMarkdown)
+        })
+        ctx.get(listenerCtx).focus(() => {
+          onEditorFocus()
         })
       })
       .use(commonmark)
@@ -181,7 +207,14 @@ export function EditorPane({
   onSourceMarkdownChange,
   onVisualMarkdownChange,
 }: EditorPaneProps) {
+  const hasUserPlacedCursorRef = useRef(false)
   const sourceDisabled = editorMode !== 'source'
+
+  useEffect(() => {
+    if (editorMode === 'visual') {
+      hasUserPlacedCursorRef.current = false
+    }
+  }, [editorMode])
 
   if (editorMode === 'visual') {
     return (
@@ -210,13 +243,16 @@ export function EditorPane({
               Canonicalize
             </button>
             <span className="toolbar-separator" />
-            <VisualToolbar />
+            <VisualToolbar hasUserPlacedCursorRef={hasUserPlacedCursorRef} />
           </div>
 
           <div className="editor-stage">
             <VisualEditorSurface
               markdown={committedMarkdown}
               onMarkdownChange={onVisualMarkdownChange}
+              onEditorFocus={() => {
+                hasUserPlacedCursorRef.current = true
+              }}
             />
           </div>
         </section>
