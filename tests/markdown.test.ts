@@ -96,12 +96,24 @@ describe('layout markdown', () => {
   })
 
   test('rejects layout directives used with the wrong syntax', () => {
+    expect(() => parseLayoutMarkdown(':box[label]')).toThrow(
+      /must be used as a block directive/,
+    )
     expect(() => parseLayoutMarkdown('::box')).toThrow(/must use container syntax/)
     expect(() => parseLayoutMarkdown(':::break\n:::')).toThrow(/must use leaf syntax/)
   })
 
   test('rejects unknown directives', () => {
     expect(() => parseLayoutMarkdown(':::foo\n:::')).toThrow(/Unsupported directive "foo"/)
+  })
+
+  test('rejects upstream id and class shortcuts as unsupported project attributes', () => {
+    expect(() => parseLayoutMarkdown(':::box{#hero}\nBody\n:::')).toThrow(
+      /does not support attributes: id/,
+    )
+    expect(() => parseLayoutMarkdown(':::box{.promo}\nBody\n:::')).toThrow(
+      /does not support attributes: class/,
+    )
   })
 
   test('round-trips directive labels through core markdown processing', () => {
@@ -118,6 +130,67 @@ describe('layout markdown', () => {
     expect(stringifyLayoutMarkdown(parseLayoutMarkdown(leafMarkdown))).toBe(
       leafMarkdown,
     )
+  })
+
+  test('preserves nested containers when the outer closing fence is longer', () => {
+    const markdown = [
+      '::::box',
+      ':::box',
+      'Body',
+      ':::',
+      '::::',
+    ].join('\n')
+
+    expect(parseLayoutMarkdown(markdown)).toEqual({
+      type: 'root',
+      children: [
+        createLayoutDirectiveNode('box', {}, [
+          createLayoutDirectiveNode('box', {}, [
+            {
+              type: 'paragraph',
+              children: [{ type: 'text', value: 'Body' }],
+            },
+          ]),
+        ]),
+      ],
+    })
+    expect(stringifyLayoutMarkdown(parseLayoutMarkdown(markdown))).toBe(markdown)
+  })
+
+  test('treats invalid directive-like lines as plain text when micromark does not recognize directive syntax', () => {
+    expect(parseLayoutMarkdown(':::box:::\nBody\n:::')).toEqual({
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: ':::box:::\nBody\n:::' }],
+        },
+      ],
+    })
+
+    expect(parseLayoutMarkdown(':::box {padding="1"}\nBody\n:::')).toEqual({
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: ':::box {padding="1"}\nBody\n:::' }],
+        },
+      ],
+    })
+  })
+
+  test('keeps too-short closing fences as container text content', () => {
+    expect(parseLayoutMarkdown('::::box\nBody\n:::\nTail')).toEqual({
+      type: 'root',
+      children: [
+        createLayoutDirectiveNode('box', {}, [
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', value: 'Body\n:::\nTail' }],
+          },
+        ]),
+      ],
+    })
   })
 
   test('normalizes empty layout containers to a single empty paragraph', () => {
