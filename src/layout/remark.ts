@@ -108,6 +108,13 @@ const EMPTY_LINE_HTML_VALUES = new Set([
   '<br >',
 ])
 
+function createEmptyParagraphNode(): MarkdownNode {
+  return {
+    children: [],
+    type: 'paragraph',
+  }
+}
+
 function isEmptyLineHtmlNode(node: MarkdownNode): boolean {
   return (
     node.type === 'html'
@@ -127,16 +134,46 @@ export function remarkLayoutDirectiveEmptyLines() {
         return
       }
 
-      node.children = node.children.map(child => {
+      const normalizedChildren = node.children.map(child => {
         if (!isEmptyLineHtmlNode(child)) {
           return child
         }
 
-        return {
-          children: [],
-          type: 'paragraph',
-        }
+        return createEmptyParagraphNode()
       })
+
+      node.children = normalizedChildren.length > 0
+        ? normalizedChildren
+        : [createEmptyParagraphNode()]
     })
   }
+}
+
+function isEmptyParagraphNode(node: MarkdownNode): boolean {
+  return node.type === 'paragraph' && Array.isArray(node.children) && node.children.length === 0
+}
+
+export function normalizeLayoutDirectiveEmptyParagraphsForMarkdown(
+  tree: MarkdownRoot,
+) {
+  visit(tree as MarkdownRoot, node => {
+    if (
+      !isLayoutDirectiveNode(node)
+      || !isContainerLayoutDirectiveName(node.name)
+      || !node.children
+    ) {
+      return
+    }
+
+    node.children = node.children.map(child => {
+      if (!isEmptyParagraphNode(child)) {
+        return child
+      }
+
+      return {
+        type: 'html',
+        value: '<br />',
+      }
+    })
+  })
 }

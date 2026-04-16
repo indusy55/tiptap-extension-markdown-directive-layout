@@ -64,13 +64,9 @@ function serializeDirectiveChildren(
   state: any,
   node: ProseNode,
 ) {
-  node.content.forEach((child, _offset, index) => {
-    const isLastChild = index === node.childCount - 1
-
+  node.content.forEach(child => {
     if (isEmptyParagraphNode(child)) {
-      if (!isLastChild) {
-        state.addNode('html', undefined, '<br />')
-      }
+      state.addNode('html', undefined, '<br />')
       return
     }
 

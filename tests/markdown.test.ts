@@ -120,6 +120,62 @@ describe('layout markdown', () => {
     )
   })
 
+  test('normalizes empty layout containers to a single empty paragraph', () => {
+    expect(parseLayoutMarkdown(':::box\n:::')).toEqual({
+      type: 'root',
+      children: [
+        createLayoutDirectiveNode('box', {}, [
+          {
+            type: 'paragraph',
+            children: [],
+          },
+        ]),
+      ],
+    })
+  })
+
+  test('round-trips empty paragraphs in layout containers through canonical <br /> markers', () => {
+    const root = {
+      type: 'root' as const,
+      children: [
+        createLayoutDirectiveNode('box', {}, [
+          {
+            type: 'heading',
+            depth: 2,
+            children: [{ type: 'text', value: 'Title' }],
+          },
+          {
+            type: 'paragraph',
+            children: [],
+          },
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', value: 'Body' }],
+          },
+          {
+            type: 'paragraph',
+            children: [],
+          },
+        ]),
+      ],
+    }
+
+    const markdown = stringifyLayoutMarkdown(root)
+
+    expect(markdown).toBe([
+      ':::box',
+      '## Title',
+      '',
+      '<br />',
+      '',
+      'Body',
+      '',
+      '<br />',
+      ':::',
+    ].join('\n'))
+    expect(parseLayoutMarkdown(markdown)).toEqual(root)
+  })
+
   test('converts layout container <br /> markers into empty paragraphs for editor parsers', () => {
     const root = {
       type: 'root' as const,
@@ -154,6 +210,24 @@ describe('layout markdown', () => {
       {
         type: 'paragraph',
         children: [{ type: 'text', value: 'Body' }],
+      },
+    ])
+  })
+
+  test('fills empty layout containers when converting <br /> markers for editor parsers', () => {
+    const root = {
+      type: 'root' as const,
+      children: [
+        createLayoutDirectiveNode('box', {}, []),
+      ],
+    }
+
+    remarkLayoutDirectiveEmptyLines()(root)
+
+    expect(root.children[0]?.children).toEqual([
+      {
+        type: 'paragraph',
+        children: [],
       },
     ])
   })

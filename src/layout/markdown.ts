@@ -4,7 +4,11 @@ import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import type { MarkdownRoot } from './nodes'
-import { remarkLayoutDirectives } from './remark'
+import {
+  normalizeLayoutDirectiveEmptyParagraphsForMarkdown,
+  remarkLayoutDirectiveEmptyLines,
+  remarkLayoutDirectives,
+} from './remark'
 
 export interface LayoutMarkdownProcessorOptions {
   bullet?: '-' | '*' | '+'
@@ -21,6 +25,7 @@ export function createLayoutMarkdownProcessor(
     .use(remarkParse)
     .use(remarkDirective)
     .use(remarkLayoutDirectives)
+    .use(remarkLayoutDirectiveEmptyLines)
     .use(remarkStringify, {
       bullet: options.bullet ?? '-',
       fences: true,
@@ -53,7 +58,8 @@ export function parseLayoutMarkdown(markdown: string): MarkdownRoot {
 
 export function stringifyLayoutMarkdown(root: MarkdownRoot): string {
   const processor = getLayoutMarkdownProcessor()
-  const normalized = processor.runSync(root) as MarkdownRoot
+  const normalized = processor.runSync(structuredClone(root)) as MarkdownRoot
+  normalizeLayoutDirectiveEmptyParagraphsForMarkdown(normalized)
   return processor.stringify(normalized as never).trimEnd()
 }
 
