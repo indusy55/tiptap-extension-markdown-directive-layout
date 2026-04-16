@@ -26,6 +26,8 @@ export type LayoutDeletionPlan = {
   startTo: number
 }
 
+type LayoutDeleteDirection = 'backward' | 'forward'
+
 function isLayoutContainerNode(node: ProseNode): boolean {
   return layoutContainerNodeNames.has(node.type.name)
 }
@@ -49,6 +51,87 @@ function getSharedLayoutContainerDepth(
   }
 
   return null
+}
+
+function hasProtectedLayoutBoundarySibling(
+  selection: TextSelection,
+  direction: LayoutDeleteDirection,
+): boolean {
+  if (!selection.empty || !selection.$from.parent.isTextblock) {
+    return false
+  }
+
+  const isBoundaryCursor = direction === 'forward'
+    ? selection.$from.parentOffset === selection.$from.parent.content.size
+    : selection.$from.parentOffset === 0
+
+  if (!isBoundaryCursor) {
+    return false
+  }
+
+  for (let depth = selection.$from.depth - 1; depth > 0; depth -= 1) {
+    const node = selection.$from.node(depth)
+
+    if (!isLayoutStructuralNode(node)) {
+      continue
+    }
+
+    const parent = selection.$from.node(depth - 1)
+
+    if (!isLayoutContainerNode(parent)) {
+      continue
+    }
+
+    let isNodeBoundary = true
+
+    for (
+      let currentDepth = selection.$from.depth;
+      currentDepth > depth;
+      currentDepth -= 1
+    ) {
+      const parentDepth = currentDepth - 1
+      const parentNode = selection.$from.node(parentDepth)
+      const parentIndex = direction === 'forward'
+        ? selection.$from.indexAfter(parentDepth)
+        : selection.$from.index(parentDepth)
+      const isParentBoundary = direction === 'forward'
+        ? parentIndex === parentNode.childCount
+        : parentIndex === 0
+
+      if (!isParentBoundary) {
+        isNodeBoundary = false
+        break
+      }
+    }
+
+    if (!isNodeBoundary) {
+      continue
+    }
+
+    const index = selection.$from.index(depth - 1)
+    const siblingIndex = direction === 'forward' ? index + 1 : index - 1
+
+    if (siblingIndex < 0 || siblingIndex >= parent.childCount) {
+      continue
+    }
+
+    if (isLayoutStructuralNode(parent.child(siblingIndex))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export function shouldBlockProtectedLayoutDelete(
+  selection: Selection,
+  direction: LayoutDeleteDirection,
+): boolean {
+  if (!(selection instanceof TextSelection)) {
+    return false
+  }
+
+  return hasProtectedLayoutBoundarySibling(selection, direction)
 }
 
 export function getProtectedLayoutDeletionPlan(

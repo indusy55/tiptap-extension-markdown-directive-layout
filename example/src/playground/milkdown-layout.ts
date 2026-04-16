@@ -26,7 +26,10 @@ import {
   stripContainerDirectiveLabel,
   type DirectiveLabel,
 } from './directive-label'
-import { createProtectedLayoutDeletionTransaction } from './layout-delete'
+import {
+  createProtectedLayoutDeletionTransaction,
+  shouldBlockProtectedLayoutDelete,
+} from './layout-delete'
 
 type LayoutHtmlAttribute = {
   defaultValue: unknown
@@ -140,6 +143,18 @@ function handleProtectedLayoutDeletion(view: EditorView) {
 
   view.dispatch(tr.scrollIntoView())
   return true
+}
+
+function handleProtectedLayoutForwardDelete(view: EditorView) {
+  if (shouldBlockProtectedLayoutDelete(view.state.selection, 'forward')) {
+    return true
+  }
+
+  return handleProtectedLayoutDeletion(view)
+}
+
+function handleProtectedLayoutBackwardDelete(view: EditorView) {
+  return handleProtectedLayoutDeletion(view)
 }
 
 function numberDataAttribute(
@@ -490,7 +505,7 @@ export const layoutKeymap = $useKeymap('layout', {
     shortcuts: 'Backspace',
     command: ctx => () => {
       const view = ctx.get(editorViewCtx)
-      return handleProtectedLayoutDeletion(view)
+      return handleProtectedLayoutBackwardDelete(view)
     },
     priority: 1001,
   },
@@ -498,7 +513,7 @@ export const layoutKeymap = $useKeymap('layout', {
     shortcuts: 'Delete',
     command: ctx => () => {
       const view = ctx.get(editorViewCtx)
-      return handleProtectedLayoutDeletion(view)
+      return handleProtectedLayoutForwardDelete(view)
     },
     priority: 1001,
   },

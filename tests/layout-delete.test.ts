@@ -7,6 +7,7 @@ import {
 import {
   createProtectedLayoutDeletionTransaction,
   getProtectedLayoutDeletionPlan,
+  shouldBlockProtectedLayoutDelete,
 } from '../example/src/playground/layout-delete'
 
 const schema = new Schema({
@@ -51,6 +52,95 @@ function getTextRange(
 }
 
 describe('layout delete protection', () => {
+  test('blocks forward delete at the end of a box before a sibling grid', () => {
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'layoutStack',
+          content: [
+            {
+              type: 'layoutBox',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'peace' }],
+                },
+              ],
+            },
+            {
+              type: 'layoutGrid',
+              content: [
+                {
+                  type: 'layoutCell',
+                  content: [
+                    {
+                      type: 'layoutBox',
+                      content: [
+                        {
+                          type: 'heading',
+                          content: [{ type: 'text', text: 'The Story' }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const startRange = getTextRange(doc, 'peace')
+    const selection = TextSelection.create(doc, startRange.to, startRange.to)
+
+    expect(shouldBlockProtectedLayoutDelete(selection, 'forward')).toBe(true)
+    expect(shouldBlockProtectedLayoutDelete(selection, 'backward')).toBe(false)
+  })
+
+  test('blocks forward delete at the end of a box before break and group', () => {
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'layoutStack',
+          content: [
+            {
+              type: 'layoutBox',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'surprise' }],
+                },
+              ],
+            },
+            {
+              type: 'layoutBreak',
+            },
+            {
+              type: 'layoutGroup',
+              content: [
+                {
+                  type: 'layoutBox',
+                  content: [
+                    {
+                      type: 'heading',
+                      content: [{ type: 'text', text: 'The Lesson' }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const startRange = getTextRange(doc, 'surprise')
+    const selection = TextSelection.create(doc, startRange.to, startRange.to)
+
+    expect(shouldBlockProtectedLayoutDelete(selection, 'forward')).toBe(true)
+  })
+
   test('keeps grid as a sibling when deleting across box and grid', () => {
     const doc = schema.nodeFromJSON({
       type: 'doc',
@@ -209,5 +299,35 @@ describe('layout delete protection', () => {
     )
 
     expect(getProtectedLayoutDeletionPlan(selection)).toBeNull()
+  })
+
+  test('does not block forward delete inside a box before a normal paragraph', () => {
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'layoutStack',
+          content: [
+            {
+              type: 'layoutBox',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Alpha' }],
+                },
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Beta' }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const startRange = getTextRange(doc, 'Alpha')
+    const selection = TextSelection.create(doc, startRange.to, startRange.to)
+
+    expect(shouldBlockProtectedLayoutDelete(selection, 'forward')).toBe(false)
   })
 })

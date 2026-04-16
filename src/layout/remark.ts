@@ -23,10 +23,18 @@ function getLayoutDirectiveKind(
   return directive === 'break' ? 'leaf' : 'container'
 }
 
-function assertDirectiveShape(node: DirectiveNode): asserts node is LayoutDirectiveNode {
-  if (!isLayoutDirectiveName(node.name)) {
+function assertSupportedDirective(
+  node: DirectiveNode,
+): asserts node is DirectiveNode & { name: LayoutDirectiveName } {
+  if (isLayoutDirectiveName(node.name)) {
     return
   }
+
+  throw new Error(`Unsupported directive "${node.name}".`)
+}
+
+function assertDirectiveShape(node: DirectiveNode): asserts node is LayoutDirectiveNode {
+  assertSupportedDirective(node)
 
   const expectedKind = getLayoutDirectiveKind(node.name)
 
@@ -52,10 +60,6 @@ function assertDirectiveShape(node: DirectiveNode): asserts node is LayoutDirect
 export function normalizeLayoutDirectiveNode(
   node: DirectiveNode,
 ): LayoutDirectiveNode | null {
-  if (!isLayoutDirectiveName(node.name)) {
-    return null
-  }
-
   assertDirectiveShape(node)
 
   const attributes = normalizeLayoutDirectiveAttributes(

@@ -105,4 +105,11 @@ describe('playground mode sync', () => {
       ]),
     ])
   })
+
+  test('parseSourceMarkdown reports unsupported directives as parse errors', () => {
+    const parsed = parseSourceMarkdown(':::foo\n:::')
+
+    expect(parsed.parseError).toMatch(/Unsupported directive "foo"/)
+    expect(parsed.documentAst).toBeNull()
+  })
 })

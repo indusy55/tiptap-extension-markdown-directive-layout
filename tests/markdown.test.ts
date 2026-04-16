@@ -100,6 +100,10 @@ describe('layout markdown', () => {
     expect(() => parseLayoutMarkdown(':::break\n:::')).toThrow(/must use leaf syntax/)
   })
 
+  test('rejects unknown directives', () => {
+    expect(() => parseLayoutMarkdown(':::foo\n:::')).toThrow(/Unsupported directive "foo"/)
+  })
+
   test('round-trips directive labels through core markdown processing', () => {
     const containerMarkdown = [
       ':::box[Lead]',
