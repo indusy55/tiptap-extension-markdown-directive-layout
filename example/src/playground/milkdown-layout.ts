@@ -26,6 +26,7 @@ import {
   stripContainerDirectiveLabel,
   type DirectiveLabel,
 } from './directive-label'
+import { createProtectedLayoutDeletionTransaction } from './layout-delete'
 
 type LayoutHtmlAttribute = {
   defaultValue: unknown
@@ -128,6 +129,17 @@ function handleLayoutContainerEnter(view: EditorView) {
   }
 
   return splitBlock(state, view.dispatch)
+}
+
+function handleProtectedLayoutDeletion(view: EditorView) {
+  const tr = createProtectedLayoutDeletionTransaction(view.state)
+
+  if (!tr) {
+    return false
+  }
+
+  view.dispatch(tr.scrollIntoView())
+  return true
 }
 
 function numberDataAttribute(
@@ -474,6 +486,22 @@ export const layoutBreakNode = createDirectiveLeafNode(
 )
 
 export const layoutKeymap = $useKeymap('layout', {
+  HandleLayoutBackspace: {
+    shortcuts: 'Backspace',
+    command: ctx => () => {
+      const view = ctx.get(editorViewCtx)
+      return handleProtectedLayoutDeletion(view)
+    },
+    priority: 1001,
+  },
+  HandleLayoutDelete: {
+    shortcuts: 'Delete',
+    command: ctx => () => {
+      const view = ctx.get(editorViewCtx)
+      return handleProtectedLayoutDeletion(view)
+    },
+    priority: 1001,
+  },
   HandleLayoutEnter: {
     shortcuts: 'Enter',
     command: ctx => () => {
