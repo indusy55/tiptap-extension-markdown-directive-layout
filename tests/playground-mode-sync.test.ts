@@ -25,6 +25,7 @@ describe('playground mode sync', () => {
         parseError: '',
       }),
     ).toEqual({
+      committedMarkdown,
       nextMode: 'source',
       sourceMarkdown: committedMarkdown,
     })
@@ -40,13 +41,28 @@ describe('playground mode sync', () => {
         parseError: 'Unclosed directive',
       }),
     ).toEqual({
+      committedMarkdown: ':::box\nHello\n:::',
       nextMode: 'source',
       sourceMarkdown: ':::box',
     })
   })
 
   test('canonicalizes valid source before returning to visual mode', () => {
-    const parsed = parseSourceMarkdown(':::box\n\nHello\n\n:::')
+    const sourceMarkdown = [
+      '::::grid{cols="12" gap="0"}',
+      ':::cell{span="1"}',
+      'A',
+      ':::',
+      '::::',
+    ].join('\n')
+    const canonicalMarkdown = [
+      '::::grid',
+      ':::cell',
+      'A',
+      ':::',
+      '::::',
+    ].join('\n')
+    const parsed = parseSourceMarkdown(sourceMarkdown)
 
     expect(parsed.parseError).toBe('')
     expect(parsed.documentAst).not.toBeNull()
@@ -55,13 +71,14 @@ describe('playground mode sync', () => {
       resolveModeSwitch({
         currentMode: 'source',
         nextMode: 'visual',
-        committedMarkdown: ':::box\n\nHello\n\n:::',
-        sourceMarkdown: ':::box\n\nHello\n\n:::',
+        committedMarkdown: sourceMarkdown,
+        sourceMarkdown,
         parseError: '',
       }),
     ).toEqual({
+      committedMarkdown: canonicalMarkdown,
       nextMode: 'visual',
-      sourceMarkdown: ':::box\n\nHello\n\n:::',
+      sourceMarkdown: canonicalMarkdown,
     })
   })
 

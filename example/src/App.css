@@ -332,8 +332,7 @@
   background: #f8f8f8;
 }
 
-.preview-pane > .pane-scroll,
-.preview-pane > .preview-error {
+.preview-pane > .pane-scroll {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -356,15 +355,14 @@
 }
 
 .preview-error {
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  flex: 0 0 auto;
+  margin: 0 0 12px;
+  padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid #d9d9d9;
   color: #333333;
   background: #f7f7f7;
-  text-align: center;
+  text-align: left;
   font-family: var(--mono);
   white-space: pre-wrap;
 }

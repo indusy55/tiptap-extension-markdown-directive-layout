@@ -34,6 +34,7 @@ export function resolveModeSwitch(options: {
   sourceMarkdown: string
   parseError: string
 }): {
+  committedMarkdown: string
   nextMode: PlaygroundEditorMode
   sourceMarkdown: string
 } {
@@ -47,6 +48,7 @@ export function resolveModeSwitch(options: {
 
   if (currentMode === nextMode) {
     return {
+      committedMarkdown,
       nextMode,
       sourceMarkdown,
     }
@@ -54,6 +56,7 @@ export function resolveModeSwitch(options: {
 
   if (nextMode === 'source') {
     return {
+      committedMarkdown,
       nextMode,
       sourceMarkdown: committedMarkdown,
     }
@@ -61,13 +64,17 @@ export function resolveModeSwitch(options: {
 
   if (parseError) {
     return {
+      committedMarkdown,
       nextMode: currentMode,
       sourceMarkdown,
     }
   }
 
+  const canonicalMarkdown = canonicalizeSourceMarkdown(sourceMarkdown)
+
   return {
+    committedMarkdown: canonicalMarkdown,
     nextMode,
-    sourceMarkdown,
+    sourceMarkdown: canonicalMarkdown,
   }
 }

@@ -51,6 +51,7 @@ export function useLayoutPlayground() {
     })
 
     setEditorMode(resolved.nextMode)
+    setCommittedMarkdown(resolved.committedMarkdown)
     setSourceMarkdown(resolved.sourceMarkdown)
   }
 

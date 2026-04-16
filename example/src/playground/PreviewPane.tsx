@@ -71,17 +71,14 @@ function PreviewSurface({ markdown }: { markdown: string }) {
 export function PreviewPane({ markdown, parseError }: PreviewPaneProps) {
   return (
     <section className="pane preview-pane">
-      {parseError ? (
-        <div className="preview-error">{parseError}</div>
-      ) : (
-        <div className="pane-scroll">
-          <div className="preview-stage">
-            <MilkdownProvider>
-              <PreviewSurface markdown={markdown} />
-            </MilkdownProvider>
-          </div>
+      {parseError ? <div className="preview-error">{parseError}</div> : null}
+      <div className="pane-scroll">
+        <div className="preview-stage">
+          <MilkdownProvider>
+            <PreviewSurface markdown={markdown} />
+          </MilkdownProvider>
         </div>
-      )}
+      </div>
     </section>
   )
 }
